@@ -106,7 +106,15 @@ function setTheme(t) { document.documentElement.dataset.theme = t; lsSet("theme2
 /* uvijek preko cijelog zaslona (i nakon spajanja na drugi monitor) */
 function fitScreen() { try { const aw = screen.availWidth, ah = screen.availHeight; if (window.outerWidth < aw - 16 || window.outerHeight < ah - 16) { window.moveTo(screen.availLeft || 0, screen.availTop || 0); window.resizeTo(aw, ah); } } catch (e) {} }
 fitScreen(); window.addEventListener("load", () => setTimeout(fitScreen, 300));
+const PUBLIC_URL = "https://tomek0608.github.io/kripto-app/";
+/* prijenos postavki s racunala na mobitel: poveznica nosi postavke u dijelu iza #, koji se nikad ne salje poslužitelju */
+function importFromHash() {
+  const m = /^#\/prenos=([A-Za-z0-9_-]+)/.exec(location.hash); if (!m) return false;
+  try { const o = JSON.parse(decodeURIComponent(escape(atob(m[1].replace(/-/g, "+").replace(/_/g, "/"))))); cfg = Object.assign(cfg, { repo: o.repo || cfg.repo, branch: o.branch || cfg.branch, token: o.token || cfg.token }); if (o.wtoken) cfg.wtoken = o.wtoken; cfg.demo = false; lsSet("cfg", cfg); history.replaceState(null, "", location.pathname + "#/signali"); setTimeout(() => toast("Postavke su prenesene. Obriši poruku s poveznicom."), 600); return true; } catch (e) { history.replaceState(null, "", location.pathname + "#/postavke"); return false; }
+}
+function transferLink() { const o = { repo: cfg.repo, branch: cfg.branch, token: cfg.token }; if (cfg.wtoken) o.wtoken = cfg.wtoken; return PUBLIC_URL + "#/prenos=" + btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
 function boot() {
+  importFromHash();
   document.documentElement.dataset.theme = lsGet("theme2", "reel");
   $("#root").innerHTML = `<canvas id="bg"></canvas><div class="veil"></div><div class="app"><aside class="rail"><div class="mark">T</div>
     ${NAV.filter(n => n[0] !== "postavke").map(([id, t, ic, g], i, a) => (i && a[i - 1][3] !== g ? '<div class="rsep"></div>' : "") + `<a class="ri g${g}" href="#/${id}" data-nav="${id}">${svg(ICON[ic])}<span class="tip">${t}</span></a>`).join("")}
@@ -120,6 +128,7 @@ function boot() {
   setTheme(lsGet("theme2", "reel")); $("#themebtn").addEventListener("click", () => setTheme(THEMES[(THEMES.indexOf(document.documentElement.dataset.theme) + 1) % THEMES.length]));
   $("#gsearch").addEventListener("keydown", e => { if (e.key === "Enter") { const v = realSym(e.target.value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "")); if (v) { location.hash = "#/graf/" + (v.endsWith("USDT") ? v : v + "USDT"); e.target.value = ""; e.target.blur(); } } });
   const tick = () => { const d = new Date(); $("#clock").textContent = new Intl.DateTimeFormat("hr-HR", { timeZone: TZ, weekday: "short", day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).format(d); }; tick(); setInterval(tick, 10000);
+  try { if ("serviceWorker" in navigator && /^https:|^http:\/\/localhost/.test(location.href)) navigator.serviceWorker.register("sw.js").catch(() => {}); } catch (e) {}
   window.addEventListener("hashchange", render); render(); refreshData(); setInterval(() => refreshData(true), Math.max(20, cfg.refresh) * 1000);
 }
 function route() { const h = location.hash.replace(/^#\/?/, "").split("/"); return { view: h[0] || "signali", arg: decodeURIComponent(h[1] || "") }; }
@@ -488,6 +497,10 @@ function vPostavke() {
     <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap"><button class="btn primary" id="ssave">Spremi i testiraj</button><button class="btn" id="sclear">Obriši token</button><button class="btn" id="swclear">Obriši token za dnevnik</button></div></div>
     <div class="card help"><h2>Kako napraviti token</h2><p class="note" style="margin-top:0"><b>Drugi token (za spremanje dnevnika):</b> isti postupak, ali pod Permissions postavi <b>Contents: Read and write</b>, i nazovi ga npr. "dnevnik". Dnevnik se tada sprema u tvoj privatni repozitorij u datoteku data/moji_trejdovi.json, pa ga ne možeš izgubiti.</p><ol><li>Na GitHubu otvorite <b>Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token</b>.</li><li>Pod <b>Repository access</b> odaberite <b>Only select repositories</b> i samo <b>crypto-signals</b>.</li><li>Pod <b>Permissions → Repository permissions</b> postavite <b>Contents: Read-only</b>.</li><li>Kopirajte token i zalijepite ga lijevo.</li></ol>
     Token ostaje samo u pregledniku na ovom računalu i šalje se jedino GitHubu, nikome drugome. Ima samo pravo čitanja, pa ništa ne može promijeniti.<p style="margin-top:10px">Cijene i grafovi dolaze izravno s Binancea, bez tokena.</p></div>
+    <div class="card"><h2>Mobitel</h2><div class="sub">Aplikacija radi i na mobitelu. Otvori ${PUBLIC_URL.replace("https://", "")} u pregledniku mobitela, pa je dodaj na početni zaslon.</div>
+      <ol class="note" style="margin:10px 0 0 18px;line-height:1.6"><li><b>Android (Chrome):</b> izbornik ⋮ → Instaliraj aplikaciju.</li><li><b>iPhone (Safari):</b> gumb Podijeli → Dodaj na početni zaslon.</li><li>Za prijenos veze s GitHubom ne moraš tipkati token: klikni ispod, zalijepi poveznicu u Telegram (Spremljene poruke), otvori je na mobitelu i potom obriši poruku.</li></ol>
+      <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap"><button class="btn primary" id="scopylink">Kopiraj poveznicu za mobitel</button></div>
+      <div class="note" style="margin-top:10px">Obavijesti o signalima na mobitelu stižu preko Telegrama (alarmi rade i kad je aplikacija zatvorena).</div></div>
     <div class="card"><h2>Obavijesti</h2><div class="sub">Kad stigne novi signal ili se zatvori otvoreni, aplikacija pokaže poruku (i u naslovu prozora). Za obavijesti i izvan prozora uključi ih ovdje.</div><div style="margin-top:12px"><button class="btn primary" id="snotif">Uključi obavijesti na računalu</button> <span class="muted" id="snstate" style="margin-left:8px">${"Notification" in window ? "Stanje: " + ({ granted: "uključeno", denied: "blokirano", default: "nije uključeno" }[Notification.permission]) : "nije podržano"}</span></div></div></div>`);
 }
 
@@ -568,6 +581,7 @@ function bind(arg) {
       const t = $("#stoken").value.trim(); cfg = Object.assign(cfg, { repo: $("#srepo").value.trim(), branch: $("#sbranch").value.trim() || "main", refresh: +$("#sref").value || 60, demo: $("#sdemo").checked }); if (t) cfg.token = t; const wt = $("#swtoken").value.trim(); if (wt) cfg.wtoken = wt;
       lsSet("cfg", cfg); S.source = "x"; await refreshData(); toast(S.err ? S.err : cfg.demo || !cfg.token ? "Spremljeno. Prikazuju se primjer podataka." : "Povezano. Učitano signala: " + S.rows.length);
     });
+    $("#scopylink").addEventListener("click", async () => { if (!cfg.token) { toast("Najprije spremi token."); return; } try { await navigator.clipboard.writeText(transferLink()); toast("Poveznica kopirana. Zalijepi je u Telegram i otvori na mobitelu."); } catch (e) { toast("Kopiranje nije uspjelo."); } });
     $("#snotif").addEventListener("click", async () => { try { const r = await Notification.requestPermission(); $("#snstate").textContent = "Stanje: " + ({ granted: "uključeno", denied: "blokirano", default: "nije uključeno" }[r]); if (r === "granted") new Notification("Kripto signali", { body: "Obavijesti su uključene.", icon: "favicon-256.png" }); } catch (e) { toast("Ovaj prozor ne podržava obavijesti."); } });
     $("#swclear").addEventListener("click", () => { cfg.wtoken = ""; lsSet("cfg", cfg); render(); toast("Token za dnevnik je obrisan."); });
     $("#sclear").addEventListener("click", () => { cfg.token = ""; lsSet("cfg", cfg); S.source = "x"; refreshData(); toast("Token je obrisan s ovog računala."); });
