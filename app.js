@@ -31,7 +31,7 @@ async function refreshData(quiet) {
   const useDemo = cfg.demo || !cfg.token;
   try {
     if (useDemo) { if (S.source !== "demo" || !S.rows.length) S.rows = await loadDemo(); S.source = "demo"; S.err = ""; }
-    else { S.rows = await loadRemote(cfg); S.source = "github"; S.err = ""; }
+    else { S.rows = await loadRemote(cfg); S.source = "github"; S.err = ""; try { S.engine = await loadEngineAge(cfg); } catch (e) {} }
     S.updated = Date.now();
   } catch (e) { S.err = String(e.message || e); if (!S.rows.length) { S.rows = await loadDemo(); S.source = "demo"; } }
   notifyChanges(); jPull(); syncLive(); if (!quiet || currentView !== "graf") render(); topPills();
@@ -91,6 +91,7 @@ function topPills() {
   const fresh = Date.now() - S.tick < 15000; let h = "";
   h += S.tick ? (fresh ? '<span class="pill live"><span class="dot"></span>Cijene uživo</span>' : '<span class="pill warn"><span class="dot"></span>Veza kasni…</span>') : '<span class="pill warn"><span class="dot"></span>Povezivanje…</span>';
   h += S.source === "demo" ? '<span class="pill demo">Primjer podataka</span>' : `<span class="pill">GitHub · ${S.updated ? fmtHM(S.updated) : "–"}</span>`;
+  if (S.source === "github" && S.engine) { const m = Math.round((Date.now() - S.engine) / 60000), t = m < 90 ? "pill" : m < 180 ? "pill warn" : "pill err"; h += `<span class="${t}" title="Engine se pokreće svakog sata i nakon svakog alarma. Ako je ovdje crveno, provjerite GitHub Actions.">Engine · ${m < 60 ? "prije " + m + " min" : "prije " + Math.floor(m / 60) + " h " + (m % 60) + " min"}</span>`; }
   if (cfg.wtoken) h += S.jerr ? '<span class="pill err" title="' + esc(S.jerr) + '">Dnevnik: nije spremljen</span>' : (S.jsync ? '<span class="pill">Dnevnik spremljen · ' + fmtHM(S.jsync) + "</span>" : '<span class="pill">Dnevnik · provjera…</span>');
   if (S.err) h += `<span class="pill err" title="${esc(S.err)}">Greška podataka</span>`;
   el.innerHTML = h;
@@ -184,7 +185,7 @@ function vPregled() {
     <td class="r"><b data-live="${s.pair}" data-k="r" data-sid="${esc(s.id)}">–</b></td><td><span data-live="${s.pair}" data-k="state" data-sid="${esc(s.id)}">–</span></td></tr>`).join("")}</table>` : '<div class="empty">Trenutno nema otvorenih signala.</div>';
   const sigBody = `
   <div class="grid g4">
-    <div class="card hero lift ${eq >= START_EQUITY ? "pos" : ""}"><div class="sub">Fiktivni račun</div><div class="big">${fmtN(eq)} <span style="font-size:16px;font-weight:500">USDT</span></div><span class="chip">${fmtPct((eq / START_EQUITY - 1) * 100)} od početnih ${fmtN(START_EQUITY, 0)}</span><div class="sub" style="margin-top:10px;opacity:.9">Računa se samo zatvoreno. Uz otvorene signale (uživo): <b>${fmtN(eqLive)} USDT</b> (${jm(openPnl)})</div></div>
+    <div class="card hero lift ${eqLive >= START_EQUITY ? "pos" : ""}"><div class="sub">Fiktivni račun</div><div class="big">${fmtN(eq)} <span style="font-size:16px;font-weight:500">USDT</span></div><span class="chip">${fmtPct((eq / START_EQUITY - 1) * 100)} od početnih ${fmtN(START_EQUITY, 0)}</span><div class="sub" style="margin-top:10px;opacity:.9">Računa se samo zatvoreno. Uz otvorene signale (uživo): <b>${fmtN(eqLive)} USDT</b> (${jm(openPnl)})</div></div>
     <div class="card stat lift"><div class="sub">Uspješnost</div><div class="v">${sm ? sm.win.toFixed(0) + "%" : "–"}</div><div class="sub">${real.length} zatvorenih signala</div></div>
     <div class="card stat lift"><div class="sub">Prosječni R</div><div class="v ${sm ? cls(sm.avg) : ""}">${sm ? fmtR(sm.avg) : "–"}</div><div class="sub">nakon troškova, cilj &gt; 0,2</div></div>
     <div class="card stat lift"><div class="sub">Profit factor</div><div class="v">${sm ? (isFinite(sm.pf) ? fmtN(sm.pf) : "∞") : "–"}</div><div class="sub">cilj &gt; 1,3</div></div>
@@ -370,7 +371,9 @@ function sigDetail(sel, onChart) {
       <div class="grid g2 mt" style="grid-template-columns:1fr 1fr;gap:28px"><div>
       ${lv("Ulaz", sel.entry, "", "")}${lv("Stop (" + fmtPct((sel.stop / sel.entry - 1) * 100) + ")", sel.stop, "down", "st")}${lv("T1 · 2R · 50%", sel.t1, "up", "t1")}${lv("T2 · 3R · 25%", sel.t2, "up", "")}${lv("T3 · 4R · 25%", sel.t3, "up", "")}</div>
       <div><div class="kv"><span>Status</span><span>${statusTag(sel)}</span></div>${op ? `<div class="kv"><span>Uživo</span><b data-live="${sel.pair}" data-k="r" data-sid="${esc(sel.id)}">–</b></div>` : `<div class="kv"><span>Izlaz</span><b>${REASON_TXT[sel.reason] || "–"} · ${fmtT(sel.exit)}</b></div><div class="kv"><span>Prosječna cijena izlaza</span><b>${fmtP(sigExitPrice(sel))} (${fmtPct(sigPct(sel))})</b></div>`}
-      <div class="kv"><span>Ciljevi</span><b>${hitTxt}</b></div><div class="kv"><span>Rizik / pozicija</span><b>${sel.risk ? fmtN(sel.risk) + " / " + fmtN(sel.pos, 0) + " USDT" : "bez pozicije (sjena)"}</b></div></div></div>
+      <div class="kv"><span>Ciljevi</span><b>${hitTxt}</b></div><div class="kv"><span>Rizik / pozicija</span><b>${sel.risk ? fmtN(sel.risk) + " / " + fmtN(sel.pos, 0) + " USDT" : "bez pozicije (sjena)"}</b></div>
+      ${isFinite(sel.mfe) && isFinite(sel.mae) ? `<div class="kv"><span>Najveći plus (u R)</span><b class="up">${fmtR(sel.mfe)}</b></div><div class="kv"><span>Najdublji minus (u R)</span><b class="down">${fmtR(sel.mae)}</b></div>` : ""}</div></div>
+      ${isFinite(sel.mfe) && isFinite(sel.mae) ? `<p class="note" style="margin-top:12px">Put cijene: ${op ? "do sada" : "do izlaza"} je najviše bila na ${fmtR(sel.mfe)} (T1 je na +2R), a najdublje na ${fmtR(sel.mae)} (stop je na −1R). Služi za procjenu jesu li stop i ciljevi dobro postavljeni.</p>` : ""}
       ${onChart ? "" : `<div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap"><a class="btn primary" href="#/graf/${esc(sel.pair)}">Otvori na grafu uživo</a></div>`}</div>
       <div class="card mt"><h2>Na čemu se temelji signal</h2><div style="margin-top:10px">${pr.items.map(i => `<div style="margin:12px 0"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px"><b>${esc(i.name)}</b><span class="muted">${i.v} / ${i.max}</span></div>
         <div class="bar"><div style="width:${i.max ? i.v / i.max * 100 : 0}%;background:${i.v / i.max >= .66 ? "var(--up)" : i.v / i.max >= .33 ? "var(--gray)" : "var(--down)"}"></div></div>${critHtml(i, sel)}</div>`).join("")}
@@ -431,7 +434,27 @@ function vStatSig() {
     <table><tr><th>Ocjena</th><th>Pravi</th><th>Sjene</th></tr>${[[55, 60], [60, 65], [65, 70], [70, 80], [80, 101]].map(([a, b]) => bucket(a, b)).join("")}</table></div>
   <div class="card"><h2>Po razlogu izlaza i okviru</h2><div class="sub">Svi zatvoreni, pravi i sjene</div><table><tr><th>Razlog</th><th class="r">Broj</th><th class="r">Prosj. R</th></tr>
     ${Object.entries(rsn).map(([k, v]) => { const s = summarize(v, "rnet"); return `<tr><td>${REASON_TXT[k] || k}</td><td class="r">${s.n}</td><td class="r ${cls(s.avg)}">${fmtR(s.avg)}</td></tr>`; }).join("")}</table>
-    <table style="margin-top:10px"><tr><th>Okvir</th><th class="r">Broj</th><th class="r">Prosj. R</th></tr>${Object.entries(tfr).map(([k, v]) => { const s = summarize(v, "rnet"); return `<tr><td>${k}</td><td class="r">${s.n}</td><td class="r ${cls(s.avg)}">${fmtR(s.avg)}</td></tr>`; }).join("")}</table></div></div>`);
+    <table style="margin-top:10px"><tr><th>Okvir</th><th class="r">Broj</th><th class="r">Prosj. R</th></tr>${Object.entries(tfr).map(([k, v]) => { const s = summarize(v, "rnet"); return `<tr><td>${k}</td><td class="r">${s.n}</td><td class="r ${cls(s.avg)}">${fmtR(s.avg)}</td></tr>`; }).join("")}</table></div></div>${statExtras(rows)}`);
+}
+
+function statExtras(rows) {
+  const row = (lab, rs) => { const s = summarize(rs, "rnet"); return s ? `<tr><td>${lab}</td><td class="r">${s.n}</td><td class="r">${s.win.toFixed(0)}%</td><td class="r ${cls(s.avg)}">${fmtR(s.avg)}</td><td class="r ${cls(s.sum)}">${fmtR(s.sum)}</td></tr>` : `<tr><td>${lab}</td><td class="r muted" colspan="4">–</td></tr>`; };
+  const cl = rows.filter(s => isClosed(s) && !isSR(s));
+  const tbl = (title, sub, keys, fn) => `<div class="card"><h2>${title}</h2><div class="sub">${sub}</div><table><tr><th></th><th class="r">Broj</th><th class="r">Pogodaka</th><th class="r">Prosj. R</th><th class="r">Zbroj R</th></tr>${keys.map(k => row(k, cl.filter(s => fn(s) === k))).join("")}</table></div>`;
+  const blk = s => { const h = new Date(s.created).getHours(); return ["00–04", "04–08", "08–12", "12–16", "16–20", "20–24"][Math.floor(h / 4)]; };
+  const dayN = ["Nedjelja", "Ponedjeljak", "Utorak", "Srijeda", "Četvrtak", "Petak", "Subota"];
+  const btc = s => !isFinite(s.btc7) ? "nepoznato (stariji signali)" : s.btc7 >= 2 ? "BTC raste (7d iznad +2%)" : s.btc7 <= -2 ? "BTC pada (7d ispod −2%)" : "BTC bez smjera";
+  // usporedba osnovne strategije i S/R varijante na istim ulazima
+  const base = {}; rows.filter(s => !isSR(s) && s.status !== "skipped_capital").forEach(s => { base[s.pair + "|" + s.created] = s; });
+  const prs = rows.filter(isSR).map(x => ({ x, b: base[x.pair + "|" + x.created] })).filter(p => p.b);
+  const done = prs.filter(p => isClosed(p.x) && isClosed(p.b));
+  const avg = k => done.length ? done.reduce((t, p) => t + (p[k].rnet || 0), 0) / done.length : NaN;
+  const better = done.filter(p => (p.x.rnet || 0) > (p.b.rnet || 0)).length;
+  const cmp = `<div class="card mt"><h2>Osnovna strategija i S/R varijanta, isti ulazi</h2><div class="sub">Isti signal, drugačiji stop i ciljevi. Ovo je pravi test je li S/R bolji. ${done.length ? `Završenih parova: ${done.length}, S/R bolji u ${better}. Prosjek osnovne ${fmtR(avg("b"))}, S/R ${fmtR(avg("x"))}.` : "Još nema parova koji su oba zatvoreni."}</div>
+    <table><tr><th>Par</th><th>Otvoren</th><th class="r">Osnovna</th><th class="r">S/R</th><th class="r">Razlika</th></tr>${prs.sort((p, q) => q.x.created - p.x.created).map(p => { const bo = isClosed(p.b), xo = isClosed(p.x), d = bo && xo ? (p.x.rnet || 0) - (p.b.rnet || 0) : NaN;
+      return `<tr class="click" data-go="#/graf/${esc(p.x.pair)}" data-sig="${esc(p.x.id)}"><td>${coin(p.x.pair)}</td><td class="muted">${fmtT(p.x.created)}</td><td class="r ${bo ? cls(p.b.rnet) : "muted"}">${bo ? fmtR(p.b.rnet) : "otvoreno"}</td><td class="r ${xo ? cls(p.x.rnet) : "muted"}">${xo ? fmtR(p.x.rnet) : "otvoreno"}</td><td class="r ${cls(d)}">${isNaN(d) ? "–" : fmtR(d)}</td></tr>`; }).join("") || '<tr><td colspan="5" class="empty">Još nema S/R parova. Pojavljuju se uz svaki novi signal.</td></tr>'}</table></div>`;
+  return cmp + `<div class="grid g2 mt" style="grid-template-columns:1fr 1fr">${tbl("Po dobu dana", "Prema lokalnom vremenu otvaranja signala (pravi i sjene, bez S/R).", ["00–04", "04–08", "08–12", "12–16", "16–20", "20–24"], blk)}${tbl("Po danu u tjednu", "Dan otvaranja signala.", ["Ponedjeljak", "Utorak", "Srijeda", "Četvrtak", "Petak", "Subota", "Nedjelja"], s => dayN[new Date(s.created).getDay()])}</div>
+  <div class="grid g2 mt" style="grid-template-columns:1fr 1fr">${tbl("Po smjeru Bitcoina", "BTC 7 dana u trenutku signala. Bilježi se tek od sada, pa starijih signala nema ovdje.", ["BTC raste (7d iznad +2%)", "BTC bez smjera", "BTC pada (7d ispod −2%)", "nepoznato (stariji signali)"], btc)}<div class="card"><h2>Kako čitati</h2><div class="note" style="line-height:1.55">Dok je zatvorenih signala malo (ispod 30 po retku), razlike su uglavnom slučajne. Ne mijenjaj strategiju na temelju jednog retka. Gledaj samo ponavljane obrasce kad bude barem 100 zatvorenih.</div></div></div>`;
 }
 
 function vStatMoja() {
