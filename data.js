@@ -27,7 +27,7 @@ function normRow(r) {
   const f = x => (x === "" || x == null) ? NaN : parseFloat(x);
   return {
     id: r.id, kind: r.kind, status: r.status, pair: r.pair, tf: r.tf, score: f(r.score),
-    created: f(r.created_ms), entry: f(r.entry), stop: f(r.stop), t1: f(r.t1), t2: f(r.t2), t3: f(r.t3),
+    version: r.version || "", created: f(r.created_ms), entry: f(r.entry), stop: f(r.stop), t1: f(r.t1), t2: f(r.t2), t3: f(r.t3),
     stopCur: f(r.stop_cur), stopPct: f(r.stop_pct), risk: f(r.risk_usdt) || 0, pos: f(r.pos_value) || 0,
     remaining: f(r.remaining), hit: (r.hit || "").split(",").filter(Boolean),
     grossR: f(r.gross_r), exit: f(r.exit_ms), reason: r.exit_reason || "", rnet: f(r.r_net),
@@ -38,6 +38,7 @@ const isOpen = s => s.status === "open" || s.status === "shadow_open";
 const isClosed = s => s.status === "closed" || s.status === "shadow_closed";
 const isReal = s => s.kind === "real" && (s.status === "open" || s.status === "closed");
 const isShadow = s => s.kind === "shadow";
+const isSR = s => /-sr$/.test(s.version || "");
 
 async function loadRemote(cfg) {
   const url = `https://api.github.com/repos/${cfg.repo}/contents/data/signali.csv?ref=${encodeURIComponent(cfg.branch || "main")}`;
