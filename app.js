@@ -23,7 +23,7 @@ const ICON = {
 const NAV = [["signali", "Signali: pravi i sjene", "sig", "t"],
   ["moj", "Moj pregled", "wallet", "m"], ["dnevnik", "Moj dnevnik", "book", "m"], ["mojastat", "Moja statistika", "pie", "m"],
   ["pregled", "Pregled signala", "wallet", "s"], ["sdnevnik", "Dnevnik signala", "book", "s"], ["statistika", "Statistika signala", "pie", "s"],
-  ["graf", "Graf uživo", "chart", "z"], ["usporedba", "Usporedba: signal i ja", "cmp", "z"], ["arhiva", "Arhiva parova", "arch", "z"],
+  ["graf", "Graf uživo", "chart", "z"], ["arhiva", "Arhiva parova", "arch", "z"],
   ["postavke", "Postavke", "set", "x"]];
 
 /* ---------------- podaci ---------------- */
