@@ -219,3 +219,10 @@ table.cmp .mine,table.cmp .mine b:not(.up):not(.down){color:var(--mine)}
   .kv{gap:10px}
   .btn,.chip-btn,.seg button{min-height:40px}
 }
+
+/* popis signala: cijena uzivo + ulaz/stop/ciljevi */
+.item{flex-wrap:wrap}
+.item .lv{flex-basis:100%;display:grid;grid-template-columns:repeat(3,1fr);gap:8px 10px;padding-top:10px;border-top:1px solid var(--edge)}
+.item .lv div{min-width:0}.item .lv i{display:block;font-style:normal;font-size:11px;color:var(--muted)}
+.item .lv b{font-size:13px;font-variant-numeric:tabular-nums}.item .lv b.up{color:var(--up,#6fcf8a)}.item .lv b.down{color:var(--down,#f08a7e)}
+.item .lv .live b{font-size:14px}.item .lv em{font-style:normal;font-size:11px;margin-left:6px}.item .lv em.up{color:var(--up,#6fcf8a)}.item .lv em.down{color:var(--down,#f08a7e)}
