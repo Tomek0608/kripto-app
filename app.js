@@ -314,6 +314,52 @@ function parseReasons(txt) {
   const out = []; if (tr.length) out.push({ name: "Trend", v: tr.reduce((a, b) => a + b.v, 0), max: tr.reduce((a, b) => a + b.max, 0), text: tr.map(t => t.name.replace("Trend ", "").replace(/^./, c => c.toUpperCase()) + ": " + t.text).join(" · ") });
   return { items: out.concat(rest), notes };
 }
+/* ---- detaljna obrazloženja ocjene ---- */
+const CRIT_INTRO = {
+  "Trend": "Je li cijena u uzlaznom trendu. Gledaju se tri uvjeta (po 5 bodova) na dva okvira: dnevni (veliki smjer) i 4h (srednji rok). Signal je pouzdaniji kad se oba okvira slažu. Maksimum 30.",
+  "Momentum": "Koliko je snažan zamah rasta upravo sada. Gleda se RSI (snaga rasta od 0 do 100) na 4h i 1h te MACD histogram (ubrzava li rast). Zdrav rast je RSI od 60 do 75; iznad 75 je prekupljeno, pa je to slabije bodovano jer je povlačenje vjerojatnije. Maksimum 15.",
+  "Volumen": "Prati li rast stvarni novac. Gleda se volumen zadnje 1h svijeće u odnosu na prosjek zadnjih 20 svijeća i OBV (kumulativni volumen: raste li kupovni pritisak). Rast bez volumena često ne drži. Maksimum 20.",
+  "Struktura": "Je li cijena probila važnu razinu. Proboj 20-svijećnog maksimuma znači da je cijena viša nego u zadnjih 20 svijeća, što je klasičan znak nastavka rasta. Ako nema proboja, bod dobiva blizina 4h podrške (blizu dna, uz mali stop). Maksimum 15.",
+  "Divergencije": "Rani znak preokreta ili nastavka. Bikovska divergencija: cijena pravi niži minimum, a indikator (RSI, MACD ili OBV) viši, pa pad slabi. Skrivena bikovska: cijena viši minimum, a indikator niži, uz uzlazni trend, što je znak nastavka rasta. Računa se samo ako je potvrđena probojem ili zelenom svijećom s volumenom. Sve ili ništa: 10 ili 0.",
+  "Fundamenti, zamjenski": "Zasad nemamo vijesti, TVL ni funding, pa se koriste zamjenski pokazatelji: raste li promet kovanice (interes tržišta) i drži li se bolje od Bitcoina zadnjih 7 dana. Maksimum 10."
+};
+function critHtml(i, sel) {
+  const t = i.text, has = s => t.indexOf(s) >= 0, num = re => { const m = t.match(re); return m ? parseFloat(m[1]) : NaN; };
+  const row = (ok, txt, pts) => `<div style="display:flex;gap:10px;align-items:baseline;margin:3px 0;font-size:12.5px"><span style="width:14px;color:${ok ? "var(--up)" : "var(--down)"}">${ok ? "✓" : "✗"}</span><span style="flex:1;${ok ? "" : "opacity:.65"}">${txt}</span><b class="${ok ? "up" : "muted"}" style="min-width:34px;text-align:right">${ok ? "+" : ""}${pts}</b></div>`;
+  let rows = "";
+  if (i.name === "Trend") {
+    const parts = t.split(" · ");
+    parts.forEach(p => { const lab = /^Dnevni/.test(p) ? "Dnevni okvir (1d)" : "Okvir 4h";
+      rows += `<div style="margin-top:8px"><b style="font-size:12.5px">${lab}</b>` + row(p.indexOf("cijena>EMA50") >= 0, "Cijena je iznad EMA50 (prosjek zadnjih 50 svijeća)", 5) + row(p.indexOf("EMA20>EMA50") >= 0, "EMA20 je iznad EMA50 (kratki prosjek preko dužeg)", 5) + row(p.indexOf("EMA50>EMA200") >= 0, "EMA50 je iznad EMA200 (dugoročni uzlazni trend)", 5) + "</div>"; });
+  } else if (i.name === "Momentum") {
+    const r4 = num(/RSI 4h (\d+)/), r1 = num(/RSI 1h (\d+)/);
+    rows += row(r4 >= 50 && r4 < 60, "RSI 4h između 50 i 60 (rast tek počinje)", 5) + row(r4 >= 60 && r4 <= 75, "RSI 4h između 60 i 75 (jak, zdrav rast)", 8) + row(r4 > 75, "RSI 4h iznad 75 (prekupljeno" + (r4 > 75 ? ", sada " + r4 : "") + "; manje bodova, veći rizik povlačenja)", 3)
+      + row(r1 > 50, "RSI 1h iznad 50" + (isFinite(r1) ? " (sada " + r1 + ")" : ""), 3) + row(has("MACD 4h raste iznad 0"), "MACD histogram 4h iznad nule i raste (zamah ubrzava)", 4) + (has("MACD 4h raste iznad 0") ? "" : row(has("MACD 4h iznad 0"), "MACD histogram 4h iznad nule, ali ne raste", 2));
+  } else if (i.name === "Volumen") {
+    const vr = num(/volumen 1h ([\d.]+)x/);
+    rows += row(vr >= 1.5, "Zelena 1h svijeća s volumenom od 1,5× prosjeka ili više" + (isFinite(vr) ? " (sada " + vr.toFixed(1) + "×)" : ""), 10) + row(vr >= 1.2 && vr < 1.5, "Zelena 1h svijeća s volumenom od 1,2× do 1,5× prosjeka", 6) + row(has("OBV 4h iznad prosjeka"), "OBV na 4h iznad svog prosjeka (kupovni pritisak)", 5) + row(has("OBV 1h raste"), "OBV na 1h raste zadnjih 20 svijeća", 5);
+  } else if (i.name === "Struktura") {
+    const b4 = has("20-svijecnog maksimuma (4h)"), b1 = has("20-svijecnog maksimuma (1h)");
+    rows += row(b4, "Proboj 20-svijećnog maksimuma na 4h", 10) + row(b1, "Proboj 20-svijećnog maksimuma na 1h", 5) + row(has("blizu 4h podrske"), "Nema proboja, ali je cijena blizu 4h podrške", 8);
+  } else if (i.name === "Divergencije") {
+    const ok = !has("nema potvrdene");
+    rows += row(ok, ok ? "Potvrđena divergencija: " + esc(t) : "Nema potvrđene bikovske divergencije na RSI, MACD ni OBV (1h i 4h)", 10);
+  } else if (i.name === "Fundamenti, zamjenski") {
+    const r = num(/volumen 24h ([\d.]+)x/), up = has("iznad 7d prosjeka");
+    rows += row(up, "Promet 24h veći od 1,3× prosjeka zadnjih 7 dana" + (isFinite(r) ? " (sada " + r.toFixed(1) + "×)" : ""), 5) + row(!up && has("7d prosjeka"), "Promet 24h veći od 7-dnevnog prosjeka" + (isFinite(r) && !up ? " (sada " + r.toFixed(1) + "×)" : ""), 3) + row(has("naspram BTC"), "Kovanica je zadnjih 7 dana bolja od Bitcoina", 5) + (has("naspram BTC") ? `<div class="note" style="margin-top:4px">${esc((t.match(/7d [^,]*naspram BTC [^,]*/) || [""])[0])}</div>` : "");
+  } else return `<div class="note">${esc(t)}</div>`;
+  return `<div class="note" style="margin:6px 0 4px;line-height:1.5">${CRIT_INTRO[i.name] || ""}</div>${rows}`;
+}
+function sigSummary(items, sel) {
+  const by = {}; items.forEach(i => by[i.name] = i);
+  const best = items.filter(i => i.max && i.v / i.max >= .99).map(i => i.name + " " + i.v + "/" + i.max), weak = items.filter(i => i.max && i.v / i.max < .4).map(i => i.name + " " + i.v + "/" + i.max);
+  const warn = [], mm = by["Momentum"] ? by["Momentum"].text : "", rr = mm.match(/RSI 4h (\d+)/);
+  if (rr && +rr[1] > 75) warn.push("RSI na 4h je " + rr[1] + " (prekupljeno): cijena je već snažno narasla, pa je povlačenje vjerojatnije i ulaz je rizičniji.");
+  if (by["Trend"] && /Dnevni: 1d: nema uvjeta/.test(by["Trend"].text)) warn.push("Dnevni trend nema nijedan uvjet: veliki smjer još nije potvrđen, signal se oslanja na kraće okvire.");
+  if (sel.stop && sel.entry && (sel.entry - sel.stop) / sel.entry > .08) warn.push("Stop je daleko od ulaza (" + fmtN((sel.entry - sel.stop) / sel.entry * 100, 1) + "%), pa je pozicija manja da rizik ostane 1% računa.");
+  return `<div class="note" style="line-height:1.55;margin-top:6px"><b>Ukratko:</b> ocjena ${sel.score}/100 (pravi signal od 65, sjena od 55). ${best.length ? "Najjači dijelovi: " + best.join(", ") + ". " : ""}${weak.length ? "Najslabiji: " + weak.join(", ") + "." : ""}</div>${warn.length ? `<div class="note" style="margin-top:6px;line-height:1.5"><b>Na što paziti:</b><br>${warn.map(w => "• " + esc(w)).join("<br>")}</div>` : ""}`;
+}
+const STOP_INFO = `<div class="note" style="margin-top:10px;line-height:1.55"><b>Kako se računaju stop i ciljevi:</b> stop je bliži od dvije udaljenosti, 1,5× ATR (prosječni raspon 1h svijeće) ili razmak do zadnjeg 1h minimuma u 48 sati, ali najmanje 0,5% od ulaza. Ciljevi su višekratnici rizika: T1 = 2R (prodaje se 50%), T2 = 3R (25%), T3 = 4R (25%). Nakon T1 stop se pomiče na ulaz, pa ostatak više ne može donijeti gubitak. Veličina pozicije je takva da gubitak na stopu iznosi 1% fiktivnog računa.</div>`;
 function vSignali(arg) {
   const rows = realRows().sort((a, b) => b.created - a.created);
   const cnt = { svi: rows.length, pravi: rows.filter(isReal).length, otvoreni: rows.filter(s => s.status === "open" || s.status === "shadow_open").length, zatvoreni: rows.filter(isClosed).length, sjene: rows.filter(isShadow).length };
@@ -335,9 +381,10 @@ function vSignali(arg) {
       <div class="kv"><span>Ciljevi</span><b>${hitTxt}</b></div><div class="kv"><span>Rizik / pozicija</span><b>${sel.risk ? fmtN(sel.risk) + " / " + fmtN(sel.pos, 0) + " USDT" : "bez pozicije (sjena)"}</b></div></div></div>
       <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap"><a class="btn primary" href="#/graf/${esc(sel.pair)}">Otvori na grafu uživo</a></div></div>
       <div class="card mt"><h2>Na čemu se temelji signal</h2><div style="margin-top:10px">${pr.items.map(i => `<div style="margin:12px 0"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px"><b>${esc(i.name)}</b><span class="muted">${i.v} / ${i.max}</span></div>
-        <div class="bar"><div style="width:${i.max ? i.v / i.max * 100 : 0}%;background:${i.v / i.max >= .66 ? "var(--up)" : i.v / i.max >= .33 ? "var(--gray)" : "var(--down)"}"></div></div><div class="note">${esc(i.text)}</div></div>`).join("")}
+        <div class="bar"><div style="width:${i.max ? i.v / i.max * 100 : 0}%;background:${i.v / i.max >= .66 ? "var(--up)" : i.v / i.max >= .33 ? "var(--gray)" : "var(--down)"}"></div></div>${critHtml(i, sel)}</div>`).join("")}
+        ${sigSummary(pr.items, sel)}
         ${pr.notes.length ? `<div class="kv" style="display:block;margin-top:6px">${pr.notes.map(n => `<div class="note">${esc(n)}</div>`).join("")}</div>` : ""}</div>
-        <p class="note"><b>Poništenje:</b> zatvaranje 1h svijeće ispod stopa (${fmtP(sel.stop)}) ili istek signala.</p></div>`;
+        <p class="note"><b>Poništenje:</b> zatvaranje 1h svijeće ispod stopa (${fmtP(sel.stop)}) ili istek signala.</p>${STOP_INFO}</div>`;
   }
   return shell("Signali i analiza", "Odaberite signal da vidite cijelu analizu i razloge.", `<div class="split"><div>
     <div class="legend"><span class="tag real">Pravi signal</span><span class="tag shadow">Sjena (probni)</span></div>
