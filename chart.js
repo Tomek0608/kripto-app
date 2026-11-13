@@ -47,6 +47,18 @@ class PriceChart {
       this.barW = Math.min(40, Math.max(2.5, this.barW * f)); this.start = idx - x / this.barW; this.clamp(); this.dirty = true;
     }, { passive: false });
     cv.addEventListener("dblclick", () => { this.reset(); });
+    /* dodir: jedan prst povlaci graf, dva prsta zumiraju, dodir postavlja liniju u nacinu "+ Moja linija" */
+    let tp = null; const dist = e => Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+    cv.addEventListener("touchstart", e => { if (e.touches.length === 2) tp = { pin: dist(e), bw: this.barW, mid: (e.touches[0].clientX + e.touches[1].clientX) / 2, st: this.start };
+      else if (e.touches.length === 1) tp = { x: e.touches[0].clientX, s: this.start, moved: false }; }, { passive: true });
+    cv.addEventListener("touchmove", e => { if (!tp) return;
+      if (tp.pin && e.touches.length === 2) { e.preventDefault(); const r = cv.getBoundingClientRect(), x = (tp.mid - r.left) * (r.width ? this.W / r.width : 1), idx = tp.st + x / tp.bw;
+        this.barW = Math.min(40, Math.max(2.5, tp.bw * dist(e) / tp.pin)); this.start = idx - x / this.barW; this.clamp(); this.dirty = true; }
+      else if (!tp.pin && e.touches.length === 1) { const dx = e.touches[0].clientX - tp.x; if (Math.abs(dx) > 6) tp.moved = true;
+        if (tp.moved) { e.preventDefault(); this.start = tp.s - dx / this.barW; this.clamp(); this.dirty = true; } } }, { passive: false });
+    cv.addEventListener("touchend", e => { if (tp && !tp.pin && !tp.moved && this.addMode && this.onAdd && e.changedTouches.length) {
+        const q = this.pos(e.changedTouches[0]); if (q.x < this.W - this.axisW) { const p = this.yToPrice(q.y); if (p != null) this.onAdd(p); } }
+      if (!e.touches.length) tp = null; }, { passive: true });
     this.loop = () => { if (this.dirty) { this.dirty = false; this.draw(); } this.raf = requestAnimationFrame(this.loop); };
     this.raf = requestAnimationFrame(this.loop); this.resize();
   }
