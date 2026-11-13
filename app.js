@@ -544,7 +544,7 @@ async function jPull() {
     const r = await fetch(jUrl() + "?ref=" + encodeURIComponent(cfg.branch || "main"), { headers: jHeaders(tok, true), cache: "no-store" });
     if (r.status === 404) { if (cfg.wtoken && J().length) jPush(); return; } if (!r.ok) return;
     const d = JSON.parse(await r.text()), lu = lsGet("journalUpd", 0);
-    if (d.updated > lu) { lsSet("journal", d.trades || []); lsSet("mojStart", d.start || 0); lsSet("journalUpd", d.updated); S.jsync = Date.now(); if (["moj", "dnevnik", "mojastat", "usporedba"].includes(currentView) && !jExit && !jEdit) render(); }
+    if (d.updated > lu || (!J().length && (d.trades || []).length)) { lsSet("journal", d.trades || []); lsSet("mojStart", d.start || 0); lsSet("journalUpd", d.updated); S.jsync = Date.now(); if (["moj", "dnevnik", "mojastat", "usporedba"].includes(currentView) && !jExit && !jEdit) render(); }
     else if (d.updated < lu && cfg.wtoken) jPush();
     else S.jsync = Date.now();
   } catch (e) {}
