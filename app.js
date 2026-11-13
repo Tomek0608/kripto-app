@@ -346,16 +346,16 @@ function vSignali(arg) {
 /* ---------------- Arhiva parova ---------------- */
 const arch = { f: "svi", q: "" };
 function vArhiva() {
-  const by = {}; realRows().filter(s => s.kind === "real").forEach(s => { (by[s.pair] = by[s.pair] || []).push(s); });
-  let list = Object.entries(by).map(([pair, ss]) => { ss.sort((a, b) => b.created - a.created); const cl = ss.filter(isClosed), tot = cl.reduce((a, s) => a + (s.rnet || 0), 0);
-    return { pair, ss, n: ss.length, open: ss.filter(isOpen).length, tot, last: ss[0], real: ss.filter(s => s.kind === "real").length }; });
-  list = list.filter(p => (arch.f === "svi" || (arch.f === "otvoreni" && p.open) || (arch.f === "dobitni" && p.tot > 0) || (arch.f === "gubitni" && p.tot < 0)) && (!arch.q || p.pair.includes(arch.q.toUpperCase())));
+  const by = {}; realRows().forEach(s => { const k = s.pair + "|" + (isShadow(s) ? "s" : "r"); (by[k] = by[k] || []).push(s); });
+  let list = Object.entries(by).map(([key, ss]) => { const pair = key.split("|")[0]; ss.sort((a, b) => b.created - a.created); const cl = ss.filter(isClosed), tot = cl.reduce((a, s) => a + (s.rnet || 0), 0);
+    return { pair, ss, n: ss.length, open: ss.filter(isOpen).length, tot, last: ss[0], real: ss.filter(s => !isShadow(s)).length, sh: isShadow(ss[0]) }; });
+  list = list.filter(p => (arch.f === "svi" || (arch.f === "pravi" && !p.sh) || (arch.f === "sjene" && p.sh) || (arch.f === "otvoreni" && p.open) || (arch.f === "dobitni" && p.tot > 0) || (arch.f === "gubitni" && p.tot < 0)) && (!arch.q || p.pair.includes(arch.q.toUpperCase())));
   list.sort((a, b) => b.last.created - a.last.created);
-  return shell("Arhiva parova", "Svi parovi za koje je bilo pravih signala. Klik na par otvara graf sa svim njegovim signalima.", `<div class="card">
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center" id="afilter">${["svi", "otvoreni", "dobitni", "gubitni"].map(k => `<button class="chip-btn ${arch.f === k ? "on" : ""}" data-f="${k}">${k[0].toUpperCase() + k.slice(1)}</button>`).join("")}
+  return shell("Arhiva parova", "Svi parovi za koje je bilo signala, pravih i sjena (svaka vrsta u svom retku). Klik na par otvara graf.", `<div class="card">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center" id="afilter">${["svi", "pravi", "sjene", "otvoreni", "dobitni", "gubitni"].map(k => `<button class="chip-btn ${arch.f === k ? "on" : ""}" data-f="${k}">${k[0].toUpperCase() + k.slice(1)}</button>`).join("")}
     <input class="txt sm" id="aq" placeholder="Traži par" value="${esc(arch.q)}" style="margin-left:auto"></div>
     <table><tr><th>Par</th><th class="r">Cijena uživo</th><th class="r">Signala</th><th class="r">Otvorenih</th><th>Zadnji signal</th><th class="r">Zbroj R</th><th>Zadnji ishod</th></tr>
-    ${list.map(p => `<tr class="click" data-go="#/graf/${esc(p.pair)}"><td>${coin(p.pair)}</td><td class="r"><span data-live="${p.pair}" data-k="price">${S.prices[p.pair] ? fmtP(S.prices[p.pair]) : "–"}</span></td><td class="r">${p.n}</td><td class="r">${p.open || "–"}</td><td class="muted">${fmtT(p.last.created)}</td>
+    ${list.map(p => `<tr class="click" data-go="#/graf/${esc(p.pair)}"><td>${coin(p.pair)} ${kindTag(p.last)}</td><td class="r"><span data-live="${p.pair}" data-k="price">${S.prices[p.pair] ? fmtP(S.prices[p.pair]) : "–"}</span></td><td class="r">${p.n}</td><td class="r">${p.open || "–"}</td><td class="muted">${fmtT(p.last.created)}</td>
     <td class="r ${cls(p.tot)}"><b>${p.ss.some(isClosed) ? fmtR(p.tot) : "–"}</b></td><td>${statusTag(p.last)}</td></tr>`).join("") || '<tr><td colspan="7" class="empty">Nema parova za taj filtar.</td></tr>'}</table></div>`);
 }
 
