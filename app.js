@@ -135,7 +135,7 @@ function render() {
   if (changed && page.innerHTML) { page.classList.remove("enter"); page.classList.add("leaving"); setTimeout(() => { page.classList.remove("leaving"); go(); }, 170); } else go();
 }
 function toast(t) { const d = document.createElement("div"); d.className = "toast"; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 4200); }
-const kindTag = s => isShadow(s) ? '<span class="tag shadow">Sjena</span>' : '<span class="tag real">Pravi</span>';
+const kindTag = s => isSR(s) ? '<span class="tag shadow">Sjena · S/R</span>' : isShadow(s) ? '<span class="tag shadow">Sjena</span>' : '<span class="tag real">Pravi</span>';
 /* parovi s kineskim slovima dobivaju latinicno ime */
 const ALIAS = lsGet("aliasi", {}), ALIAS0 = { "\u725b\u6765": "NIULAI" };
 const aliasOf = b => ALIAS[b] || ALIAS0[b] || ("CN" + [...b].map(c => c.codePointAt(0).toString(16).toUpperCase()).join("").slice(0, 10));
@@ -368,13 +368,13 @@ function vSignali(arg) {
   const fl = rows.filter(s => (sigFilter.f === "svi" || (sigFilter.f === "pravi" && isReal(s)) || (sigFilter.f === "sjene" && isShadow(s))) && (!sigFilter.q || s.pair.includes(sigFilter.q.toUpperCase())));
   const sel = all.find(s => s.id === arg) || fl[0] || rows[0] || all[0];
   const list = fl.map(s => `<div class="item k-${isShadow(s) ? "shadow" : "real"} ${sel && s.id === sel.id ? "on" : ""}" data-go="#/signali/${esc(s.id)}"><span class="coin ${isShadow(s) ? "g" : ""}"><i>${esc(dn(base(s.pair)).slice(0, 2))}</i></span>
-    <div class="t"><b>${esc(dn(s.pair))} · ${isShadow(s) ? "SJENA" : "PRAVI · LONG"}</b><span>${fmtT(s.created)} · ${s.tf} · ocjena ${s.score}</span></div>${statusTag(s)}</div>`).join("") || '<div class="empty">Nema otvorenih signala. Zatvoreni su u <a href="#/arhiva">Arhivi</a>.</div>';
+    <div class="t"><b>${esc(dn(s.pair))} · ${isSR(s) ? "SJENA · S/R" : isShadow(s) ? "SJENA" : "PRAVI · LONG"}</b><span>${fmtT(s.created)} · ${s.tf} · ocjena ${s.score}</span></div>${statusTag(s)}</div>`).join("") || '<div class="empty">Nema otvorenih signala. Zatvoreni su u <a href="#/arhiva">Arhivi</a>.</div>';
   let det = '<div class="card empty">Odaberite signal s popisa.</div>';
   if (sel) {
     const pr = parseReasons(sel.reasons), op = isOpen(sel);
     const lv = (lab, v, c, k) => `<div class="kv"><span>${lab}</span><span style="display:flex;gap:14px"><b class="${c || ""}">${fmtP(v)}</b>${op ? `<span class="muted" style="min-width:64px;text-align:right" data-live="${sel.pair}" data-k="${k}" data-sid="${esc(sel.id)}"></span>` : ""}</span></div>`;
     const hitTxt = sel.hit.length ? sel.hit.map(h => h + " ✓").join(" · ") : "Čeka prvi cilj (T1)";
-    det = `<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap"><div><h2 style="font-size:22px;font-weight:600">${esc(dn(sel.pair))} · ${isShadow(sel) ? "SJENA (probni, nije za ulazak)" : "PRAVI · LONG"}</h2>
+    det = `<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap"><div><h2 style="font-size:22px;font-weight:600">${esc(dn(sel.pair))} · ${isSR(sel) ? "SJENA · S/R (probni, nije za ulazak)" : isShadow(sel) ? "SJENA (probni, nije za ulazak)" : "PRAVI · LONG"}</h2>
       <div class="sub" style="margin-top:4px">Okvir ${sel.tf} · otvoren ${fmtT(sel.created)} · vrijedi do ${fmtT(sel.expires)} · strategija v1</div></div>
       <div style="text-align:right"><div class="score"><b>${sel.score}</b><span class="muted">/ 100</span></div></div></div>
       <div class="grid g2 mt" style="grid-template-columns:1fr 1fr;gap:28px"><div>
@@ -397,7 +397,7 @@ function vSignali(arg) {
 /* ---------------- Arhiva parova ---------------- */
 const arch = { f: "svi", q: "" };
 function vArhiva() {
-  const by = {}; realRows().forEach(s => { const k = s.pair + "|" + (isShadow(s) ? "s" : "r"); (by[k] = by[k] || []).push(s); });
+  const by = {}; realRows().forEach(s => { const k = s.pair + "|" + (isSR(s) ? "x" : isShadow(s) ? "s" : "r"); (by[k] = by[k] || []).push(s); });
   let list = Object.entries(by).map(([key, ss]) => { const pair = key.split("|")[0]; ss.sort((a, b) => b.created - a.created); const cl = ss.filter(isClosed), tot = cl.reduce((a, s) => a + (s.rnet || 0), 0);
     return { pair, ss, n: ss.length, open: ss.filter(isOpen).length, tot, last: ss[0], real: ss.filter(s => !isShadow(s)).length, sh: isShadow(ss[0]) }; });
   list = list.filter(p => (arch.f === "svi" || (arch.f === "pravi" && !p.sh) || (arch.f === "sjene" && p.sh) || (arch.f === "otvoreni" && p.open) || (arch.f === "dobitni" && p.tot > 0) || (arch.f === "gubitni" && p.tot < 0)) && (!arch.q || p.pair.includes(arch.q.toUpperCase())));
@@ -412,7 +412,7 @@ function vArhiva() {
 
 /* ---------------- Statistika ---------------- */
 function vStatSig() {
-  const rows = realRows().filter(s => inRange(isClosed(s) ? s.exit : s.created)), real = rows.filter(s => s.kind === "real" && s.status === "closed"), sh = rows.filter(s => s.status === "shadow_closed");
+  const rows = realRows().filter(s => inRange(isClosed(s) ? s.exit : s.created)), real = rows.filter(s => s.kind === "real" && s.status === "closed"), sh = rows.filter(s => s.status === "shadow_closed" && !isSR(s)), srr = rows.filter(s => s.status === "shadow_closed" && isSR(s));
   const card = (t, rs, dd) => { const s = summarize(rs, "rnet"); if (!s) return `<div class="card"><h2>${t}</h2><div class="empty">Nema zatvorenih signala.</div></div>`;
     return `<div class="card"><h2>${t}</h2><div style="margin-top:8px"><div class="kv"><span>Zatvorenih</span><b>${s.n}</b></div><div class="kv"><span>Uspješnost</span><b>${s.win.toFixed(0)}%</b></div><div class="kv"><span>Prosječni R</span><b class="${cls(s.avg)}">${fmtR(s.avg)}</b></div>
       <div class="kv"><span>Zbroj R</span><b class="${cls(s.sum)}">${fmtR(s.sum)}</b></div><div class="kv"><span>Profit factor</span><b>${isFinite(s.pf) ? fmtN(s.pf) : "∞"}</b></div>${dd ? `<div class="kv"><span>Maksimalni pad računa</span><b>${fmtN(maxDD(rs, "pnl", START_EQUITY), 1)}%</b></div>` : ""}</div></div>`; };
@@ -422,7 +422,7 @@ function vStatSig() {
   const byR = k => { const o = {}; rows.filter(isClosed).forEach(s => { const key = s[k]; (o[key] = o[key] || []).push(s); }); return o; };
   const tfr = byR("tf"), rsn = byR("reason");
   return shell("Statistika signala", "Što bi se dogodilo da se točno slušaju stop i ciljevi. Pravi signali i sjene, nakon troškova. Strategija se ne mijenja prije 4 tjedna ili 100 zatvorenih signala.", dateBar() + `
-  <div class="grid g3">${card("Pravi signali", real, true)}${card("Sjene (bez obavijesti)", sh, false)}
+  <div class="grid g3">${card("Pravi signali", real, true)}${card("Sjene (bez obavijesti)", sh, false)}${card("S/R varijanta (sjena)", srr, false)}
   <div class="card"><h2>Napredak do pregleda</h2><div style="margin-top:12px"><div class="kv"><span>Zatvorenih pravih</span><b>${real.length} / 100</b></div><div class="bar" style="margin:8px 0 14px"><div style="width:${Math.min(100, real.length)}%;background:var(--red)"></div></div>
   <div class="kv"><span>Ukupno signala</span><b>${rows.length}</b></div><div class="kv"><span>Otvorenih</span><b>${rows.filter(isOpen).length}</b></div></div></div></div>
   <div class="grid g2 mt" style="grid-template-columns:1fr 1fr"><div class="card"><h2>Po ocjeni signala</h2><div class="sub">Broj · pogodaka · prosječni R. Pomaže pri odluci o pragu.</div>
