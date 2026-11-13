@@ -184,7 +184,7 @@ function vPregled() {
     <td class="r"><b data-live="${s.pair}" data-k="r" data-sid="${esc(s.id)}">–</b></td><td><span data-live="${s.pair}" data-k="state" data-sid="${esc(s.id)}">–</span></td></tr>`).join("")}</table>` : '<div class="empty">Trenutno nema otvorenih signala.</div>';
   const sigBody = `
   <div class="grid g4">
-    <div class="card hero lift"><div class="sub">Fiktivni račun</div><div class="big">${fmtN(eq)} <span style="font-size:16px;font-weight:500">USDT</span></div><span class="chip">${fmtPct((eq / START_EQUITY - 1) * 100)} od početnih ${fmtN(START_EQUITY, 0)}</span><div class="sub" style="margin-top:10px;opacity:.9">Računa se samo zatvoreno. Uz otvorene signale (uživo): <b>${fmtN(eqLive)} USDT</b> (${jm(openPnl)})</div></div>
+    <div class="card hero lift ${eq >= START_EQUITY ? "pos" : ""}"><div class="sub">Fiktivni račun</div><div class="big">${fmtN(eq)} <span style="font-size:16px;font-weight:500">USDT</span></div><span class="chip">${fmtPct((eq / START_EQUITY - 1) * 100)} od početnih ${fmtN(START_EQUITY, 0)}</span><div class="sub" style="margin-top:10px;opacity:.9">Računa se samo zatvoreno. Uz otvorene signale (uživo): <b>${fmtN(eqLive)} USDT</b> (${jm(openPnl)})</div></div>
     <div class="card stat lift"><div class="sub">Uspješnost</div><div class="v">${sm ? sm.win.toFixed(0) + "%" : "–"}</div><div class="sub">${real.length} zatvorenih signala</div></div>
     <div class="card stat lift"><div class="sub">Prosječni R</div><div class="v ${sm ? cls(sm.avg) : ""}">${sm ? fmtR(sm.avg) : "–"}</div><div class="sub">nakon troškova, cilj &gt; 0,2</div></div>
     <div class="card stat lift"><div class="sub">Profit factor</div><div class="v">${sm ? (isFinite(sm.pf) ? fmtN(sm.pf) : "∞") : "–"}</div><div class="sub">cilj &gt; 1,3</div></div>
@@ -229,7 +229,7 @@ function mojPregled() {
   const bar = (lab, n, col) => { const pc = cc.length ? n / cc.length * 100 : 0; return `<div class="row-bar"><span>${lab}</span><div class="bar"><div style="width:${pc}%;background:${col}"></div></div><b class="r">${pc.toFixed(0)}%</b></div>`; };
   const nl = cc.length - wins.length;
   return `<div class="grid g4">
-    <div class="card hero lift"><div class="sub">Moj račun</div><div class="big">${st0 > 0 ? fmtN(st0 + tt.total) : jm(tt.total)} <span style="font-size:16px;font-weight:500">USDT</span></div><span class="chip">${st0 > 0 ? fmtPct(tt.total / st0 * 100) + " od početnih " + fmtN(st0, 0) : "rezultat · realizirano " + jm(tt.realized) + " · otvoreno " + jm(tt.unreal)}</span><div style="margin-top:10px"><button class="btn sm" id="setstart">${st0 > 0 ? "Promijeni početni račun" : "Postavi početni račun"}</button></div></div>
+    <div class="card hero lift ${tt.total >= 0 ? "pos" : ""}"><div class="sub">Moj račun</div><div class="big">${st0 > 0 ? fmtN(st0 + tt.total) : jm(tt.total)} <span style="font-size:16px;font-weight:500">USDT</span></div><span class="chip">${st0 > 0 ? fmtPct(tt.total / st0 * 100) + " od početnih " + fmtN(st0, 0) : "rezultat · realizirano " + jm(tt.realized) + " · otvoreno " + jm(tt.unreal)}</span><div style="margin-top:10px"><button class="btn sm" id="setstart">${st0 > 0 ? "Promijeni početni račun" : "Postavi početni račun"}</button></div></div>
     <div class="card stat lift"><div class="sub">Uspješnost</div><div class="v">${cc.length ? Math.round(wins.length / cc.length * 100) + "%" : "–"}</div><div class="sub">${cc.length} zatvorenih trejdova</div></div>
     <div class="card stat lift"><div class="sub">Prosjek po trejdu</div><div class="v ${cls(avgPct)}">${cc.length ? fmtPct(avgPct) : "–"}</div><div class="sub">nakon provizije</div></div>
     <div class="card stat lift"><div class="sub">Profit factor</div><div class="v">${cc.length ? (gl > 0 ? fmtN(gw / gl) : gw > 0 ? "∞" : "–") : "–"}</div><div class="sub">dobici / gubici</div></div></div>
@@ -360,6 +360,25 @@ function sigSummary(items, sel) {
   return `<div class="note" style="line-height:1.55;margin-top:6px"><b>Ukratko:</b> ocjena ${sel.score}/100 (pravi signal od 65, sjena od 55). ${best.length ? "Najjači dijelovi: " + best.join(", ") + ". " : ""}${weak.length ? "Najslabiji: " + weak.join(", ") + "." : ""}</div>${warn.length ? `<div class="note" style="margin-top:6px;line-height:1.5"><b>Na što paziti:</b><br>${warn.map(w => "• " + esc(w)).join("<br>")}</div>` : ""}`;
 }
 const STOP_INFO = `<div class="note" style="margin-top:10px;line-height:1.55"><b>Kako se računaju stop i ciljevi:</b> stop je bliži od dvije udaljenosti, 1,5× ATR (prosječni raspon 1h svijeće) ili razmak do zadnjeg 1h minimuma u 48 sati, ali najmanje 0,5% od ulaza. Ciljevi su višekratnici rizika: T1 = 2R (prodaje se 50%), T2 = 3R (25%), T3 = 4R (25%). Nakon T1 stop se pomiče na ulaz, pa ostatak više ne može donijeti gubitak. Veličina pozicije je takva da gubitak na stopu iznosi 1% fiktivnog računa.</div>`;
+function sigDetail(sel, onChart) {
+    const pr = parseReasons(sel.reasons), op = isOpen(sel);
+    const lv = (lab, v, c, k) => `<div class="kv"><span>${lab}</span><span style="display:flex;gap:14px"><b class="${c || ""}">${fmtP(v)}</b>${op ? `<span class="muted" style="min-width:64px;text-align:right" data-live="${sel.pair}" data-k="${k}" data-sid="${esc(sel.id)}"></span>` : ""}</span></div>`;
+    const hitTxt = sel.hit.length ? sel.hit.map(h => h + " ✓").join(" · ") : "Čeka prvi cilj (T1)";
+    return `<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap"><div><h2 style="font-size:22px;font-weight:600">${esc(dn(sel.pair))} · ${isSR(sel) ? "SJENA · S/R (probni, nije za ulazak)" : isShadow(sel) ? "SJENA (probni, nije za ulazak)" : "PRAVI · LONG"}</h2>
+      <div class="sub" style="margin-top:4px">Okvir ${sel.tf} · otvoren ${fmtT(sel.created)} · vrijedi do ${fmtT(sel.expires)} · strategija v1</div></div>
+      <div style="text-align:right"><div class="score"><b>${sel.score}</b><span class="muted">/ 100</span></div></div></div>
+      <div class="grid g2 mt" style="grid-template-columns:1fr 1fr;gap:28px"><div>
+      ${lv("Ulaz", sel.entry, "", "")}${lv("Stop (" + fmtPct((sel.stop / sel.entry - 1) * 100) + ")", sel.stop, "down", "st")}${lv("T1 · 2R · 50%", sel.t1, "up", "t1")}${lv("T2 · 3R · 25%", sel.t2, "up", "")}${lv("T3 · 4R · 25%", sel.t3, "up", "")}</div>
+      <div><div class="kv"><span>Status</span><span>${statusTag(sel)}</span></div>${op ? `<div class="kv"><span>Uživo</span><b data-live="${sel.pair}" data-k="r" data-sid="${esc(sel.id)}">–</b></div>` : `<div class="kv"><span>Izlaz</span><b>${REASON_TXT[sel.reason] || "–"} · ${fmtT(sel.exit)}</b></div><div class="kv"><span>Prosječna cijena izlaza</span><b>${fmtP(sigExitPrice(sel))} (${fmtPct(sigPct(sel))})</b></div>`}
+      <div class="kv"><span>Ciljevi</span><b>${hitTxt}</b></div><div class="kv"><span>Rizik / pozicija</span><b>${sel.risk ? fmtN(sel.risk) + " / " + fmtN(sel.pos, 0) + " USDT" : "bez pozicije (sjena)"}</b></div></div></div>
+      ${onChart ? "" : `<div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap"><a class="btn primary" href="#/graf/${esc(sel.pair)}">Otvori na grafu uživo</a></div>`}</div>
+      <div class="card mt"><h2>Na čemu se temelji signal</h2><div style="margin-top:10px">${pr.items.map(i => `<div style="margin:12px 0"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px"><b>${esc(i.name)}</b><span class="muted">${i.v} / ${i.max}</span></div>
+        <div class="bar"><div style="width:${i.max ? i.v / i.max * 100 : 0}%;background:${i.v / i.max >= .66 ? "var(--up)" : i.v / i.max >= .33 ? "var(--gray)" : "var(--down)"}"></div></div>${critHtml(i, sel)}</div>`).join("")}
+        ${sigSummary(pr.items, sel)}
+        ${pr.notes.length ? `<div class="kv" style="display:block;margin-top:6px">${pr.notes.map(n => `<div class="note">${esc(n)}</div>`).join("")}</div>` : ""}</div>
+        <p class="note"><b>Poništenje:</b> cijena dotakne stop (${fmtP(sel.stop)}), provjera je svake minute, ili istek signala.</p>${STOP_INFO}</div>`;
+  }
+
 function vSignali(arg) {
   const all = realRows().sort((a, b) => b.created - a.created);
   const rows = all.filter(isOpen);  // popis: samo otvoreni; zatvoreni su u Arhivi
@@ -370,24 +389,7 @@ function vSignali(arg) {
   const list = fl.map(s => `<div class="item k-${isShadow(s) ? "shadow" : "real"} ${sel && s.id === sel.id ? "on" : ""}" data-go="#/signali/${esc(s.id)}"><span class="coin ${isShadow(s) ? "g" : ""}"><i>${esc(dn(base(s.pair)).slice(0, 2))}</i></span>
     <div class="t"><b>${esc(dn(s.pair))} · ${isSR(s) ? "SJENA · S/R" : isShadow(s) ? "SJENA" : "PRAVI · LONG"}</b><span>${fmtT(s.created)} · ${s.tf} · ocjena ${s.score}</span></div>${statusTag(s)}</div>`).join("") || '<div class="empty">Nema otvorenih signala. Zatvoreni su u <a href="#/arhiva">Arhivi</a>.</div>';
   let det = '<div class="card empty">Odaberite signal s popisa.</div>';
-  if (sel) {
-    const pr = parseReasons(sel.reasons), op = isOpen(sel);
-    const lv = (lab, v, c, k) => `<div class="kv"><span>${lab}</span><span style="display:flex;gap:14px"><b class="${c || ""}">${fmtP(v)}</b>${op ? `<span class="muted" style="min-width:64px;text-align:right" data-live="${sel.pair}" data-k="${k}" data-sid="${esc(sel.id)}"></span>` : ""}</span></div>`;
-    const hitTxt = sel.hit.length ? sel.hit.map(h => h + " ✓").join(" · ") : "Čeka prvi cilj (T1)";
-    det = `<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap"><div><h2 style="font-size:22px;font-weight:600">${esc(dn(sel.pair))} · ${isSR(sel) ? "SJENA · S/R (probni, nije za ulazak)" : isShadow(sel) ? "SJENA (probni, nije za ulazak)" : "PRAVI · LONG"}</h2>
-      <div class="sub" style="margin-top:4px">Okvir ${sel.tf} · otvoren ${fmtT(sel.created)} · vrijedi do ${fmtT(sel.expires)} · strategija v1</div></div>
-      <div style="text-align:right"><div class="score"><b>${sel.score}</b><span class="muted">/ 100</span></div></div></div>
-      <div class="grid g2 mt" style="grid-template-columns:1fr 1fr;gap:28px"><div>
-      ${lv("Ulaz", sel.entry, "", "")}${lv("Stop (" + fmtPct((sel.stop / sel.entry - 1) * 100) + ")", sel.stop, "down", "st")}${lv("T1 · 2R · 50%", sel.t1, "up", "t1")}${lv("T2 · 3R · 25%", sel.t2, "up", "")}${lv("T3 · 4R · 25%", sel.t3, "up", "")}</div>
-      <div><div class="kv"><span>Status</span><span>${statusTag(sel)}</span></div>${op ? `<div class="kv"><span>Uživo</span><b data-live="${sel.pair}" data-k="r" data-sid="${esc(sel.id)}">–</b></div>` : `<div class="kv"><span>Izlaz</span><b>${REASON_TXT[sel.reason] || "–"} · ${fmtT(sel.exit)}</b></div><div class="kv"><span>Prosječna cijena izlaza</span><b>${fmtP(sigExitPrice(sel))} (${fmtPct(sigPct(sel))})</b></div>`}
-      <div class="kv"><span>Ciljevi</span><b>${hitTxt}</b></div><div class="kv"><span>Rizik / pozicija</span><b>${sel.risk ? fmtN(sel.risk) + " / " + fmtN(sel.pos, 0) + " USDT" : "bez pozicije (sjena)"}</b></div></div></div>
-      <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap"><a class="btn primary" href="#/graf/${esc(sel.pair)}">Otvori na grafu uživo</a></div></div>
-      <div class="card mt"><h2>Na čemu se temelji signal</h2><div style="margin-top:10px">${pr.items.map(i => `<div style="margin:12px 0"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px"><b>${esc(i.name)}</b><span class="muted">${i.v} / ${i.max}</span></div>
-        <div class="bar"><div style="width:${i.max ? i.v / i.max * 100 : 0}%;background:${i.v / i.max >= .66 ? "var(--up)" : i.v / i.max >= .33 ? "var(--gray)" : "var(--down)"}"></div></div>${critHtml(i, sel)}</div>`).join("")}
-        ${sigSummary(pr.items, sel)}
-        ${pr.notes.length ? `<div class="kv" style="display:block;margin-top:6px">${pr.notes.map(n => `<div class="note">${esc(n)}</div>`).join("")}</div>` : ""}</div>
-        <p class="note"><b>Poništenje:</b> cijena dotakne stop (${fmtP(sel.stop)}), provjera je svake minute, ili istek signala.</p>${STOP_INFO}</div>`;
-  }
+  if (sel) det = sigDetail(sel, false);
   return shell("Signali i analiza", "Otvoreni signali. Odaberite signal da vidite cijelu analizu i razloge. Zatvoreni su u Arhivi.", `<div class="split"><div>
     <div class="legend"><span class="tag real">Pravi signal</span><span class="tag shadow">Sjena (probni)</span></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px" id="sfilter">${[["svi", "Svi"], ["pravi", "Pravi"], ["sjene", "Sjene"]].map(([k, t]) => `<button class="chip-btn ${sigFilter.f === k ? "on" : ""}" data-f="${k}">${t} (${cnt[k]})</button>`).join("")}</div>
@@ -406,7 +408,7 @@ function vArhiva() {
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center" id="afilter">${["svi", "pravi", "sjene", "otvoreni", "dobitni", "gubitni"].map(k => `<button class="chip-btn ${arch.f === k ? "on" : ""}" data-f="${k}">${k[0].toUpperCase() + k.slice(1)}</button>`).join("")}
     <input class="txt sm" id="aq" placeholder="Traži par" value="${esc(arch.q)}" style="margin-left:auto"></div>
     <table><tr><th>Par</th><th class="r">Cijena uživo</th><th class="r">Signala</th><th class="r">Otvorenih</th><th>Zadnji signal</th><th class="r">Zbroj R</th><th>Zadnji ishod</th></tr>
-    ${list.map(p => `<tr class="click" data-go="#/graf/${esc(p.pair)}"><td>${coin(p.pair)} ${kindTag(p.last)}</td><td class="r"><span data-live="${p.pair}" data-k="price">${S.prices[p.pair] ? fmtP(S.prices[p.pair]) : "–"}</span></td><td class="r">${p.n}</td><td class="r">${p.open || "–"}</td><td class="muted">${fmtT(p.last.created)}</td>
+    ${list.map(p => `<tr class="click" data-go="#/graf/${esc(p.pair)}" data-sig="${esc(p.last.id)}"><td>${coin(p.pair)} ${kindTag(p.last)}</td><td class="r"><span data-live="${p.pair}" data-k="price">${S.prices[p.pair] ? fmtP(S.prices[p.pair]) : "–"}</span></td><td class="r">${p.n}</td><td class="r">${p.open || "–"}</td><td class="muted">${fmtT(p.last.created)}</td>
     <td class="r ${cls(p.tot)}"><b>${p.ss.some(isClosed) ? fmtR(p.tot) : "–"}</b></td><td>${statusTag(p.last)}</td></tr>`).join("") || '<tr><td colspan="7" class="empty">Nema parova za taj filtar.</td></tr>'}</table></div>`);
 }
 
@@ -484,8 +486,13 @@ function vGraf(arg) {
     <select class="txt sm" id="gshow" style="width:auto"><option value="all">Svi signali</option><option value="real">Samo pravi</option><option value="open">Samo otvoreni</option></select>
     <button class="chip-btn" id="gadd">+ Moja linija</button><button class="chip-btn" id="greset">Vrati prikaz</button></div>
   <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:10px;flex-wrap:wrap"><span class="price-big" id="gprice">–</span><span id="gpct" style="font-weight:600"></span><div class="ohlc" id="gohlc"></div></div>
-  <div class="cl"><div class="chartwrap" id="gwrap"></div><div class="cside"><div class="card"><h2>Signali na ovom paru</h2><div id="gsigs" style="margin-top:8px"></div></div>
-    <div class="card"><h2>Moje linije</h2><div class="sub">Klik na „+ Moja linija“, pa klik na graf. Ili upišite cijenu.</div><div style="display:flex;gap:8px;margin-top:10px"><input class="txt" id="gprice-in" placeholder="Cijena" inputmode="decimal"><button class="btn" id="gprice-add">Dodaj</button></div><div id="glines" style="margin-top:8px"></div></div></div></div>`);
+  <div class="cl"><div class="chartwrap" id="gwrap"></div><div class="cside"><div class="card"><h2>Signali na ovom paru</h2><div class="sub">Klik na signal otvara cijelu analizu ispod grafa.</div><div id="gsigs" style="margin-top:8px"></div></div>
+    <div class="card"><h2>Moje linije</h2><div class="sub">Klik na „+ Moja linija“, pa klik na graf. Ili upišite cijenu.</div><div style="display:flex;gap:8px;margin-top:10px"><input class="txt" id="gprice-in" placeholder="Cijena" inputmode="decimal"><button class="btn" id="gprice-add">Dodaj</button></div><div id="glines" style="margin-top:8px"></div></div></div></div>
+  <div id="gdet" style="margin-top:16px">${chartSel() ? sigDetail(chartSel(), true) : ""}</div>`);
+}
+function chartSel() {
+  const ss = S.rows.filter(s => s.pair === chartState.pair && s.status !== "skipped_capital").sort((a, b) => b.created - a.created);
+  return ss.find(s => s.id === chartState.sig) || ss[0] || null;
 }
 function chartSigs() {
   const pair = chartState.pair; let ss = S.rows.filter(s => s.pair === pair && s.status !== "skipped_capital");
@@ -497,7 +504,9 @@ function chartSigs() {
 }
 function paintChartSide() {
   const sg = $("#gsigs"); if (!sg) return; const ss = S.rows.filter(s => s.pair === chartState.pair && s.status !== "skipped_capital").sort((a, b) => b.created - a.created);
-  sg.innerHTML = ss.length ? ss.map(s => `<div class="kv" style="cursor:pointer;align-items:center" data-go="#/signali/${esc(s.id)}"><span>${kindTag(s)} ${fmtT(s.created)} · ${s.score}</span>${statusTag(s)}</div>`).join("") : '<div class="note">Nema signala za ovaj par. Možete ga ipak pratiti i crtati svoje linije.</div>';
+  const cur = chartSel();
+  sg.innerHTML = ss.length ? ss.map(s => `<div class="kv" style="cursor:pointer;align-items:center;${cur && cur.id === s.id ? "background:rgba(255,255,255,.07);border-radius:8px;padding:4px 8px;margin:0 -8px" : ""}" data-pick="${esc(s.id)}"><span>${kindTag(s)} ${fmtT(s.created)} · ${s.score}</span>${statusTag(s)}</div>`).join("") : '<div class="note">Nema signala za ovaj par. Možete ga ipak pratiti i crtati svoje linije.</div>';
+  sg.querySelectorAll("[data-pick]").forEach(el => el.addEventListener("click", () => { chartState.sig = el.dataset.pick; lsSet("chartState", chartState); const s = S.rows.find(x => x.id === chartState.sig), d = $("#gdet"); if (d && s) { d.innerHTML = sigDetail(s, true); paintLive(); paintChartSide(); d.scrollIntoView({ behavior: "smooth", block: "start" }); } }));
   const ls = userLines(chartState.pair); $("#glines").innerHTML = ls.map(l => `<div class="kv" style="align-items:center"><span style="color:#3B6FD4">● ${esc(l.label || "Moja linija")}</span><span style="display:flex;align-items:center;gap:6px"><b>${fmtP(l.price)}</b><button class="x" data-del="${l.id}" aria-label="Obriši liniju">×</button></span></div>`).join("");
 }
 function paintChartHead(h) {
@@ -521,7 +530,7 @@ async function loadKlines() {
 /* ---------------- povezivanje dogadjaja ---------------- */
 function bind(arg) {
   const main = $("#main");
-  main.querySelectorAll("[data-go]").forEach(e => e.addEventListener("click", () => { location.hash = e.dataset.go; }));
+  main.querySelectorAll("[data-go]").forEach(e => e.addEventListener("click", () => { if (e.dataset.sig) { chartState.sig = e.dataset.sig; lsSet("chartState", chartState); } location.hash = e.dataset.go; }));
   if (currentView === "pregled" || currentView === "moj") main.querySelectorAll("#eqseg button").forEach(b => b.addEventListener("click", () => { eqRange = b.dataset.r; lsSet("eqRange", eqRange); render(); }));
   if (currentView === "signali") {
     main.querySelectorAll("#sfilter button").forEach(b => b.addEventListener("click", () => { sigFilter.f = b.dataset.f; render(); }));
