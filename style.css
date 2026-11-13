@@ -80,6 +80,7 @@ h1,h2,h3,p{margin:0}
 .card h2{font-size:15px;font-weight:600}
 .card .sub{font-size:12px;color:var(--muted)}
 .hero{background:linear-gradient(145deg,rgba(var(--acc),.82),rgba(var(--accd),.80));border:1px solid rgba(255,150,150,.35);color:#FFF6EC}
+.hero.pos{background:linear-gradient(145deg,rgba(34,150,80,.85),rgba(14,98,50,.82));border-color:rgba(140,235,170,.4)}
 .hero .sub{color:rgba(255,244,232,.85)}
 .hero .big{font-size:38px;font-weight:700;letter-spacing:-.02em}
 .hero .chip{display:inline-block;font-size:12px;font-weight:600;padding:5px 11px;border-radius:999px;background:rgba(20,12,6,.45);color:#CFF3D6;margin-top:8px}
