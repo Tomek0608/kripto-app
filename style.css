@@ -118,7 +118,7 @@ th.r,td.r{text-align:right}
 .bar>div{height:100%;border-radius:99px;transition:width .6s cubic-bezier(.2,.8,.2,1)}
 .row-bar{display:grid;grid-template-columns:110px 1fr 44px;align-items:center;gap:12px;padding:7px 0;font-size:13px}
 .split{display:grid;grid-template-columns:380px 1fr;gap:18px;align-items:start}
-.list{display:flex;flex-direction:column;gap:10px;max-height:calc(100vh - 290px);overflow:auto;padding:4px 4px 4px 0}
+.list{display:flex;flex-direction:column;gap:10px;max-height:calc(100vh - 290px);overflow-y:auto;overflow-x:hidden;padding:4px 6px 4px 4px}
 .item{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:20px;border:1px solid var(--edge);background:var(--glass);backdrop-filter:blur(16px);cursor:pointer;transition:transform .2s,border-color .2s,background .2s,box-shadow .2s}
 .item:hover{transform:translateX(5px);border-color:rgba(var(--acc),.4);background:var(--glass2);box-shadow:var(--shadow)}
 .item.on{border-color:rgba(var(--acc),.55);background:var(--glass2)}
