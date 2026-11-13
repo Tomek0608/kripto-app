@@ -17,7 +17,7 @@ function macdArr(c) { const a = emaArr(c, 12), b = emaArr(c, 26), m = c.map((_, 
 class PriceChart {
   constructor(wrap, opts = {}) {
     this.wrap = wrap; this.cv = document.createElement("canvas"); wrap.appendChild(this.cv);
-    this.ctx = this.cv.getContext("2d");
+    this.ctx = this.cv.getContext("2d"); this.ov = document.createElement("canvas"); this.ov.className = "ov"; wrap.appendChild(this.ov); this.ovx = this.ov.getContext("2d");
     this.dark = false; this.o = Object.assign({ ema: true, vol: true, rsi: true, macd: true }, opts);
     this.c = []; this.tf = "1h"; this.signals = []; this.lines = []; this.live = NaN;
     this.barW = 9; this.start = 0; this.cross = null; this.addMode = false; this.onAdd = null; this.onHover = null;
@@ -27,8 +27,8 @@ class PriceChart {
     cv.addEventListener("mousedown", e => { this.drag = { x: e.clientX, s: this.start, moved: false }; });
     window.addEventListener("mouseup", this._up = e => {
       if (this.drag && !this.drag.moved && this.addMode && this.onAdd) {
-        const r = cv.getBoundingClientRect(); const x = e.clientX - r.left, y = e.clientY - r.top;
-        if (e.target === cv && x < r.width - this.axisW) { const p = this.yToPrice(y); if (p != null) this.onAdd(p); }
+        const q = this.pos(e), x = q.x, y = q.y;
+        if (e.target === cv && x < this.W - this.axisW) { const p = this.yToPrice(y); if (p != null) this.onAdd(p); }
       }
       this.drag = null; cv.style.cursor = this.addMode ? "crosshair" : "default";
     });
@@ -37,12 +37,12 @@ class PriceChart {
       if (this.drag) { const dx = e.clientX - this.drag.x; if (Math.abs(dx) > 3) this.drag.moved = true;
         if (this.drag.moved) { this.start = this.drag.s - dx / this.barW; this.clamp(); cv.style.cursor = "grabbing"; this.dirty = true; } }
       if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
-        this.cross = { x: e.clientX - r.left, y: e.clientY - r.top }; this.dirty = true; this.hover();
-      } else if (this.cross) { this.cross = null; this.dirty = true; this.hover(); }
+        this.cross = this.pos(e); if (this.drag && this.drag.moved) this.dirty = true; this.drawCross(); this.hover();
+      } else if (this.cross) { this.cross = null; this.drawCross(); this.hover(); }
     });
-    cv.addEventListener("mouseleave", () => { this.cross = null; this.dirty = true; this.hover(); });
+    cv.addEventListener("mouseleave", () => { this.cross = null; this.drawCross(); this.hover(); });
     cv.addEventListener("wheel", e => {
-      e.preventDefault(); const r = cv.getBoundingClientRect(); const x = e.clientX - r.left;
+      e.preventDefault(); const x = this.pos(e).x;
       const idx = this.start + x / this.barW; const f = e.deltaY < 0 ? 1.12 : 1 / 1.12;
       this.barW = Math.min(40, Math.max(2.5, this.barW * f)); this.start = idx - x / this.barW; this.clamp(); this.dirty = true;
     }, { passive: false });
@@ -51,8 +51,9 @@ class PriceChart {
     this.raf = requestAnimationFrame(this.loop); this.resize();
   }
   destroy() { cancelAnimationFrame(this.raf); this.ro.disconnect(); window.removeEventListener("mouseup", this._up); window.removeEventListener("mousemove", this._mv); this.cv.remove(); }
-  resize() { const r = this.wrap.getBoundingClientRect(), d = window.devicePixelRatio || 1;
-    this.W = r.width; this.H = r.height; this.cv.width = r.width * d; this.cv.height = r.height * d; this.ctx.setTransform(d, 0, 0, d, 0, 0); this.dirty = true; }
+  pos(e) { const r = this.cv.getBoundingClientRect(), sx = r.width ? this.W / r.width : 1, sy = r.height ? this.H / r.height : 1; return { x: (e.clientX - r.left) * sx, y: (e.clientY - r.top) * sy }; }
+  resize() { const w = this.wrap.clientWidth, h = this.wrap.clientHeight, d = window.devicePixelRatio || 1;
+    this.W = w; this.H = h; this.cv.width = w * d; this.cv.height = h * d; this.ctx.setTransform(d, 0, 0, d, 0, 0); this.ov.width = w * d; this.ov.height = h * d; this.ovx.setTransform(d, 0, 0, d, 0, 0); this.dirty = true; }
   setTheme(t) { this.dark = t !== "light"; this.dirty = true; }
   f(a) { return this.dark ? `rgba(244,235,225,${a})` : `rgba(27,27,30,${a})`; }
   k(a) { return this.dark ? `rgba(255,255,255,${a})` : `rgba(0,0,0,${a})`; }
@@ -153,7 +154,9 @@ class PriceChart {
       g.fillStyle = bg; rr(g, plotW + 2, y - 8, this.axisW - 4, 16, 4); g.fill(); g.fillStyle = fg; g.font = "600 10.5px Inter,system-ui"; g.textAlign = "center"; g.fillText(fmtP(p), plotW + this.axisW / 2, y + .5); });
     /* podpanele */
     this.panes(g, plotW, i0, i1, P);
-    /* nitni kriz */
+    this.drawCross();
+  }
+  drawCross() { const g = this.ovx; if (!g) return; const W = this.W, H = this.H, plotW = W - this.axisW, bw = this.barW; g.clearRect(0, 0, W, H); if (!this.c.length || !this.P) return;
     if (this.cross && this.cross.x < plotW) { const cx = this.cross.x, cy = this.cross.y; g.strokeStyle = this.k(.35); g.setLineDash([3, 3]); g.lineWidth = 1;
       g.beginPath(); g.moveTo(Math.round(cx) + .5, 0); g.lineTo(Math.round(cx) + .5, H - this.axisH); g.stroke();
       if (cy < H - this.axisH) { g.beginPath(); g.moveTo(0, Math.round(cy) + .5); g.lineTo(plotW, Math.round(cy) + .5); g.stroke(); } g.setLineDash([]);
