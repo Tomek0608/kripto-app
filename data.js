@@ -27,7 +27,7 @@ function normRow(r) {
   const f = x => (x === "" || x == null) ? NaN : parseFloat(x);
   return {
     id: r.id, kind: r.kind, status: r.status, pair: r.pair, tf: r.tf, score: f(r.score),
-    version: r.version || "", created: f(r.created_ms), entry: f(r.entry), stop: f(r.stop), t1: f(r.t1), t2: f(r.t2), t3: f(r.t3),
+    version: r.version || "", mfe: f(r.mfe_r), mae: f(r.mae_r), btc7: f(r.btc7), created: f(r.created_ms), entry: f(r.entry), stop: f(r.stop), t1: f(r.t1), t2: f(r.t2), t3: f(r.t3),
     stopCur: f(r.stop_cur), stopPct: f(r.stop_pct), risk: f(r.risk_usdt) || 0, pos: f(r.pos_value) || 0,
     remaining: f(r.remaining), hit: (r.hit || "").split(",").filter(Boolean),
     grossR: f(r.gross_r), exit: f(r.exit_ms), reason: r.exit_reason || "", rnet: f(r.r_net),
@@ -47,6 +47,15 @@ async function loadRemote(cfg) {
   if (res.status === 404) throw new Error("Datoteka data/signali.csv nije pronađena (404). Provjerite repozitorij i granu u Postavkama, ili pričekajte prvo pokretanje engina.");
   if (!res.ok) throw new Error("GitHub greška " + res.status);
   return parseCSV(await res.text()).map(normRow);
+}
+
+/* zadnje pokretanje enginea = vrijeme zadnjeg commita na data/statistika.md */
+async function loadEngineAge(cfg) {
+  const url = `https://api.github.com/repos/${cfg.repo}/commits?path=data/statistika.md&per_page=1&sha=${encodeURIComponent(cfg.branch || "main")}`;
+  const res = await fetch(url, { headers: { Authorization: "Bearer " + cfg.token, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" }, cache: "no-store" });
+  if (!res.ok) throw new Error("commits " + res.status);
+  const j = await res.json();
+  return j && j[0] ? Date.parse(j[0].commit.committer.date) : 0;
 }
 
 /* ---------- demo podaci ---------- */
