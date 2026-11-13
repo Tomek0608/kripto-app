@@ -190,3 +190,32 @@ table.cmp td,table.cmp th{vertical-align:top;white-space:nowrap}
 table.cmp .mine,table.cmp .mine b:not(.up):not(.down){color:var(--mine)}
 
 .btn.mine-btn{border-color:var(--mine);color:var(--mine)}
+
+/* ---------- mobitel ---------- */
+@media(max-width:760px){
+  html,body{height:100%}
+  .app,.main{height:100vh;height:100dvh}
+  .main{padding:calc(10px + env(safe-area-inset-top)) 12px calc(96px + env(safe-area-inset-bottom)) 12px;-webkit-overflow-scrolling:touch}
+  .rail{left:8px;right:8px;top:auto;bottom:calc(8px + env(safe-area-inset-bottom));width:auto;height:62px;border-radius:24px;padding:0 10px;flex-direction:row;gap:4px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;justify-content:flex-start}
+  .rail::-webkit-scrollbar{display:none}
+  .rail .mark,.rail .rsep,.rail .grow,.rail .tip{display:none}
+  .rail .ri{flex:0 0 46px;width:46px;height:46px}
+  .topbar{position:static;gap:8px;padding-bottom:8px}
+  .crumb{display:none}
+  .search{order:0;flex:1 1 100%;min-height:42px}
+  .tb-right{width:100%;flex-wrap:nowrap;gap:8px;min-width:0}
+  .clock,.tb-right .ibtn{display:none}
+  .pills{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;gap:6px;min-width:0}.pills::-webkit-scrollbar{display:none}
+  .pill{font-size:11px;padding:4px 9px;white-space:nowrap;flex:0 0 auto}
+  .page-head h1,h1{font-size:24px}
+  .grid,.g2,.g3,.g4,.split,.cl,.jgrid{grid-template-columns:1fr!important}
+  .card{overflow-x:auto;padding:16px}
+  .card table{min-width:520px}
+  .hero .big{font-size:32px}
+  .chartwrap{height:420px;min-height:340px}
+  .chartwrap canvas{touch-action:pan-y}
+  .chartbar{gap:8px}.chartbar .txt.sm{flex:1 1 100%}
+  .list{max-height:none}
+  .kv{gap:10px}
+  .btn,.chip-btn,.seg button{min-height:40px}
+}
