@@ -135,15 +135,15 @@ function boot() {
 function route() { const h = location.hash.replace(/^#\/?/, "").split("/"); return { view: h[0] || "signali", arg: decodeURIComponent(h[1] || "") }; }
 let renderTok = 0;
 function render() {
-  const { view, arg } = route(); const prev = currentView; const next = NAV.some(n => n[0] === view) ? view : "signali"; const changed = prev !== next && prev !== ""; const page = $("#page"), tok = ++renderTok;
+  const { view, arg } = route(); const prev = currentView; const next = NAV.some(n => n[0] === view) ? view : "signali"; const anim = !/^(statistika|mojastat|sdnevnik)$/.test(next); const changed = prev !== next && prev !== ""; const page = $("#page"), tok = ++renderTok;
   const go = () => { if (tok !== renderTok) return;
     currentView = next; if (chart && prev === "graf") { chart.destroy(); chart = null; } if (kws) { kws.onclose = null; try { kws.close(); } catch (e) {} kws = null; }
     document.querySelectorAll("[data-nav]").forEach(a => a.classList.toggle("on", a.dataset.nav === currentView)); $("#crumb").textContent = (NAV.find(n => n[0] === currentView) || [])[1];
     const main = $("#main"), sc = main.scrollTop; const V = { moj: vMoj, pregled: vPregled, signali: vSignali, graf: vGraf, arhiva: vArhiva, dnevnik: vDnevnik, statistika: vStatSig, sdnevnik: vSDnevnik, mojastat: vStatMoja, usporedba: vUsporedba, postavke: vPostavke }[currentView];
-    page.className = changed || prev === "" ? "enter" : ""; page.innerHTML = V(arg);
+    page.className = anim && (changed || prev === "") ? "enter" : ""; page.innerHTML = V(arg);
     if (page.className === "enter") page.querySelectorAll(".page-head,.chartbar,.card,.item,.chartwrap").forEach((el, i) => el.style.setProperty("--i", Math.min(i, 9)));
     main.scrollTop = prev === currentView ? sc : 0; topPills(); bind(arg); paintLive(); const open = S.rows.some(s => s.status === "open"); const bd = $("#belldot"); if (bd) bd.style.display = open ? "block" : "none"; };
-  if (changed && page.innerHTML) { page.classList.remove("enter"); page.classList.add("leaving"); setTimeout(() => { page.classList.remove("leaving"); go(); }, 170); } else go();
+  if (changed && anim && page.innerHTML) { page.classList.remove("enter"); page.classList.add("leaving"); setTimeout(() => { page.classList.remove("leaving"); go(); }, 170); } else go();
 }
 function toast(t) { const d = document.createElement("div"); d.className = "toast"; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 4200); }
 const kindTag = s => isSR(s) ? '<span class="tag shadow">Sjena · S/R</span>' : isShadow(s) ? '<span class="tag shadow">Sjena</span>' : '<span class="tag real">Pravi</span>';
