@@ -47,6 +47,17 @@ class PriceChart {
       this.barW = Math.min(40, Math.max(2.5, this.barW * f)); this.start = idx - x / this.barW; this.clamp(); this.dirty = true;
     }, { passive: false });
     cv.addEventListener("dblclick", () => { this.reset(); });
+    /* os cijene (desno): povuci prstom ili misem gore = povecaj, dolje = smanji (visinski zoom) */
+    this.ys = 1; const az = this.az = document.createElement("div"); az.className = "yaxis"; az.style.cssText = "position:absolute;right:0;top:0;width:" + this.axisW + "px;height:60%;z-index:3;touch-action:none;cursor:ns-resize"; wrap.appendChild(az);
+    let ya = null; const yset = cy => { this.ys = Math.min(8, Math.max(.12, ya.ys * Math.exp((cy - ya.y) * .006))); this.dirty = true; };
+    az.addEventListener("touchstart", e => { if (e.touches.length === 1) ya = { y: e.touches[0].clientY, ys: this.ys }; }, { passive: true });
+    az.addEventListener("touchmove", e => { if (ya && e.touches.length === 1) { e.preventDefault(); yset(e.touches[0].clientY); } }, { passive: false });
+    az.addEventListener("touchend", () => { ya = null; }, { passive: true });
+    az.addEventListener("touchcancel", () => { ya = null; }, { passive: true });
+    az.addEventListener("mousedown", e => { ya = { y: e.clientY, ys: this.ys }; e.preventDefault(); });
+    window.addEventListener("mousemove", this._ymv = e => { if (ya) yset(e.clientY); });
+    window.addEventListener("mouseup", this._yup = () => { ya = null; });
+    az.addEventListener("dblclick", () => { this.ys = 1; this.dirty = true; });
     /* dodir: jedan prst povlaci graf, dva prsta zumiraju, dodir postavlja liniju u nacinu "+ Moja linija" */
     let tp = null; const dist = e => Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
     cv.addEventListener("touchstart", e => { if (e.touches.length === 2) tp = { pin: dist(e), bw: this.barW, mid: (e.touches[0].clientX + e.touches[1].clientX) / 2, st: this.start };
@@ -62,7 +73,7 @@ class PriceChart {
     this.loop = () => { if (this.dirty) { this.dirty = false; this.draw(); } this.raf = requestAnimationFrame(this.loop); };
     this.raf = requestAnimationFrame(this.loop); this.resize();
   }
-  destroy() { cancelAnimationFrame(this.raf); this.ro.disconnect(); window.removeEventListener("mouseup", this._up); window.removeEventListener("mousemove", this._mv); this.cv.remove(); }
+  destroy() { cancelAnimationFrame(this.raf); this.ro.disconnect(); window.removeEventListener("mouseup", this._up); window.removeEventListener("mousemove", this._mv); window.removeEventListener("mousemove", this._ymv); window.removeEventListener("mouseup", this._yup); this.cv.remove(); }
   pos(e) { const r = this.cv.getBoundingClientRect(), sx = r.width ? this.W / r.width : 1, sy = r.height ? this.H / r.height : 1; return { x: (e.clientX - r.left) * sx, y: (e.clientY - r.top) * sy }; }
   resize() { const w = this.wrap.clientWidth, h = this.wrap.clientHeight, d = window.devicePixelRatio || 1;
     this.W = w; this.H = h; this.cv.width = w * d; this.cv.height = h * d; this.ctx.setTransform(d, 0, 0, d, 0, 0); this.ov.width = w * d; this.ov.height = h * d; this.ovx.setTransform(d, 0, 0, d, 0, 0); this.dirty = true; }
@@ -77,7 +88,7 @@ class PriceChart {
   setData(c, tf) { this.c = c; this.tf = tf; this.calc(); this.reset(); }
   calc() { const cl = this.c.map(k => k.c);
     this.e20 = emaArr(cl, 20); this.e50 = emaArr(cl, 50); this.e200 = emaArr(cl, 200); this.rsi = rsiArr(cl); this.mc = macdArr(cl); }
-  reset() { this.barW = 9; const vis = (this.W - this.axisW) / this.barW; this.start = this.c.length - vis + 8; this.clamp(); this.dirty = true; }
+  reset() { this.ys = 1; this.barW = 9; const vis = (this.W - this.axisW) / this.barW; this.start = this.c.length - vis + 8; this.clamp(); this.dirty = true; }
   clamp() { const vis = (this.W - this.axisW) / this.barW; this.start = Math.max(-vis * .6, Math.min(this.c.length - vis * .4, this.start)); }
   update(k) { // k: {t,o,h,l,c,v}
     const n = this.c.length; if (!n) return;
@@ -117,6 +128,8 @@ class PriceChart {
     openSigs.forEach(s => { [s.t2, s.t3].forEach(v => { if (v > mx && v - mn < cr * 2.2) mx = v; }); });
     this.lines.forEach(l => { if (l.price < mn * 1.0 && l.price > mn * .8) mn = l.price; if (l.price > mx && l.price < mx * 1.2) mx = l.price; });
     const pad = (mx - mn) * .06 || mx * .01; P.main.min = mn - pad; P.main.max = mx + pad;
+    if (this.ys && this.ys !== 1) { const cc = (P.main.min + P.main.max) / 2, hh = (P.main.max - P.main.min) / 2 * this.ys; P.main.min = cc - hh; P.main.max = cc + hh; }
+    if (this.az) { this.az.style.top = P.main.y + "px"; this.az.style.height = P.main.h + "px"; }
     const yP = (p) => P.main.y + (P.main.max - p) / (P.main.max - P.main.min) * P.main.h;
     /* mreza + os cijene */
     g.font = "11px Inter,system-ui"; g.textBaseline = "middle";
