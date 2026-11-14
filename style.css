@@ -243,3 +243,7 @@ table.cmp .mine,table.cmp .mine b:not(.up):not(.down){color:var(--mine)}
 @media(max-width:760px){.mrow1,.mrow2{grid-template-columns:1fr!important}}
 #main{overflow-anchor:none}
 #moneyblk .card{backdrop-filter:none;-webkit-backdrop-filter:none}
+
+/* mobitel: graf u detalju signala */
+.sgwrap{height:340px;min-height:300px}
+@media(max-width:760px){.sgwrap{height:340px}.sgc{padding:12px}}
