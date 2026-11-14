@@ -81,7 +81,7 @@ function liveVal(el) {
   else if (s && k === "state") { const sh = isShort(s), hit = sh ? (p <= s.t3 ? "T3 dosegnut" : p <= s.t2 ? "T2 dosegnut" : p <= s.t1 ? "T1 dosegnut" : p >= s.stop ? "Iznad stopa" : "U tijeku") : (p >= s.t3 ? "T3 dosegnut" : p >= s.t2 ? "T2 dosegnut" : p >= s.t1 ? "T1 dosegnut" : p <= s.stop ? "Ispod stopa" : "U tijeku"), stopHit = sh ? p >= s.stop : p <= s.stop, t1Hit = sh ? p <= s.t1 : p >= s.t1; t = hit; c = stopHit ? "down" : t1Hit ? "up" : ""; }
   if (el.textContent !== t) el.textContent = t; if (c2) c = c2; if (c !== undefined && k !== "price") el.className = (el.className.replace(/\b(up|down)\b/g, "").trim() + " " + c).trim();
 }
-function paintLive() { document.querySelectorAll("[data-live]").forEach(liveVal); moneyRefresh(); if (currentView === "graf" && chart && chartState.pair && S.prices[chartState.pair]) { chart.setLive(S.prices[chartState.pair]); paintChartHead(); } topPills(); }
+function paintLive() { document.querySelectorAll("[data-live]").forEach(liveVal); moneyRefresh(); if ((currentView === "graf" || currentView === "signali") && chart && chartState.pair && S.prices[chartState.pair]) { chart.setLive(S.prices[chartState.pair]); paintChartHead(); } topPills(); }
 setInterval(() => topPills(), 2000);
 
 /* ---------------- okvir ---------------- */
@@ -133,16 +133,17 @@ function boot() {
   window.addEventListener("hashchange", render); render(); refreshData(); setInterval(() => refreshData(true), Math.max(20, cfg.refresh) * 1000);
 }
 function route() { const h = location.hash.replace(/^#\/?/, "").split("/"); return { view: h[0] || "signali", arg: decodeURIComponent(h[1] || "") }; }
-let renderTok = 0;
+let renderTok = 0, lastArg = "", sigListScroll = 0;
+const isNarrow = () => window.matchMedia("(max-width:1180px)").matches;
 function render() {
   const { view, arg } = route(); const prev = currentView; const next = NAV.some(n => n[0] === view) ? view : "signali"; const anim = !/^(statistika|mojastat|sdnevnik)$/.test(next); const changed = prev !== next && prev !== ""; const page = $("#page"), tok = ++renderTok;
   const go = () => { if (tok !== renderTok) return;
-    currentView = next; if (chart && prev === "graf") { chart.destroy(); chart = null; } if (kws) { kws.onclose = null; try { kws.close(); } catch (e) {} kws = null; }
+    currentView = next; if (chart && (prev === "graf" || prev === "signali")) { chart.destroy(); chart = null; } if (kws) { kws.onclose = null; try { kws.close(); } catch (e) {} kws = null; }
     document.querySelectorAll("[data-nav]").forEach(a => a.classList.toggle("on", a.dataset.nav === currentView)); $("#crumb").textContent = (NAV.find(n => n[0] === currentView) || [])[1];
     const main = $("#main"), sc = main.scrollTop; const V = { moj: vMoj, pregled: vPregled, signali: vSignali, graf: vGraf, arhiva: vArhiva, dnevnik: vDnevnik, statistika: vStatSig, sdnevnik: vSDnevnik, mojastat: vStatMoja, usporedba: vUsporedba, postavke: vPostavke }[currentView];
     page.className = anim && (changed || prev === "") ? "enter" : ""; page.innerHTML = V(arg);
     if (page.className === "enter") page.querySelectorAll(".page-head,.chartbar,.card,.item,.chartwrap").forEach((el, i) => el.style.setProperty("--i", Math.min(i, 9)));
-    main.scrollTop = prev === currentView ? sc : 0; topPills(); bind(arg); paintLive(); const open = S.rows.some(s => s.status === "open"); const bd = $("#belldot"); if (bd) bd.style.display = open ? "block" : "none"; };
+    if (currentView === "signali" && isNarrow() && prev === "signali") { if (arg && !lastArg) sigListScroll = sc; main.scrollTop = arg === lastArg ? sc : (arg ? 0 : sigListScroll); } else main.scrollTop = prev === currentView ? sc : 0; lastArg = arg || ""; topPills(); bind(arg); paintLive(); const open = S.rows.some(s => s.status === "open"); const bd = $("#belldot"); if (bd) bd.style.display = open ? "block" : "none"; };
   if (changed && anim && page.innerHTML) { page.classList.remove("enter"); page.classList.add("leaving"); setTimeout(() => { page.classList.remove("leaving"); go(); }, 170); } else go();
 }
 function toast(t) { const d = document.createElement("div"); d.className = "toast"; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 4200); }
@@ -372,7 +373,7 @@ function sigSummary(items, sel) {
   return `<div class="note" style="line-height:1.55;margin-top:6px"><b>Ukratko:</b> ocjena ${sel.score}/100 (pravi signal od 65, sjena od 55). ${best.length ? "Najjači dijelovi: " + best.join(", ") + ". " : ""}${weak.length ? "Najslabiji: " + weak.join(", ") + "." : ""}</div>${warn.length ? `<div class="note" style="margin-top:6px;line-height:1.5"><b>Na što paziti:</b><br>${warn.map(w => "• " + esc(w)).join("<br>")}</div>` : ""}`;
 }
 const STOP_INFO = `<div class="note" style="margin-top:10px;line-height:1.55"><b>Kako se računaju stop i ciljevi:</b> stop je bliži od dvije udaljenosti, 1,5× ATR (prosječni raspon 1h svijeće) ili razmak do zadnjeg 1h minimuma u 48 sati, ali najmanje 0,5% od ulaza. Ciljevi su višekratnici rizika: T1 = 2R (prodaje se 50%), T2 = 3R (25%), T3 = 4R (25%). Nakon T1 stop se pomiče na ulaz, pa ostatak više ne može donijeti gubitak. Veličina pozicije je takva da gubitak na stopu iznosi 1% fiktivnog računa.</div>`;
-function sigDetail(sel, onChart) {
+function sigDetail(sel, onChart, mid) {
     const pr = parseReasons(sel.reasons), op = isOpen(sel);
     const lv = (lab, v, c, k) => `<div class="kv"><span>${lab}</span><span style="display:flex;gap:14px"><b class="${c || ""}">${fmtP(v)}</b>${op ? `<span class="muted" style="min-width:64px;text-align:right" data-live="${sel.pair}" data-k="${k}" data-sid="${esc(sel.id)}"></span>` : ""}</span></div>`;
     const hitTxt = sel.hit.length ? sel.hit.map(h => h + " ✓").join(" · ") : "Čeka prvi cilj (T1)";
@@ -386,7 +387,7 @@ function sigDetail(sel, onChart) {
       ${isFinite(sel.mfe) && isFinite(sel.mae) ? `<div class="kv"><span>Najveći plus (u R)</span><b class="up">${fmtR(sel.mfe)}</b></div><div class="kv"><span>Najdublji minus (u R)</span><b class="down">${fmtR(sel.mae)}</b></div>` : ""}</div></div>
       ${isFinite(sel.mfe) && isFinite(sel.mae) ? `<p class="note" style="margin-top:12px">Put cijene: ${op ? "do sada" : "do izlaza"} je najviše bila na ${fmtR(sel.mfe)} (T1 je na +2R), a najdublje na ${fmtR(sel.mae)} (stop je na −1R). Služi za procjenu jesu li stop i ciljevi dobro postavljeni.</p>` : ""}
       ${onChart ? "" : `<div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap"><a class="btn primary" href="#/graf/${esc(sel.pair)}">Otvori na grafu uživo</a></div>`}</div>
-      <div class="card mt"><h2>Na čemu se temelji signal</h2><div style="margin-top:10px">${pr.items.map(i => `<div style="margin:12px 0"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px"><b>${esc(i.name)}</b><span class="muted">${i.v} / ${i.max}</span></div>
+      ${mid || ""}<div class="card mt"><h2>Na čemu se temelji signal</h2><div style="margin-top:10px">${pr.items.map(i => `<div style="margin:12px 0"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px"><b>${esc(i.name)}</b><span class="muted">${i.v} / ${i.max}</span></div>
         <div class="bar"><div style="width:${i.max ? i.v / i.max * 100 : 0}%;background:${i.v / i.max >= .66 ? "var(--up)" : i.v / i.max >= .33 ? "var(--gray)" : "var(--down)"}"></div></div>${critHtml(i, sel)}</div>`).join("")}
         ${sigSummary(pr.items, sel)}
         ${pr.notes.length ? `<div class="kv" style="display:block;margin-top:6px">${pr.notes.map(n => `<div class="note">${esc(n)}</div>`).join("")}</div>` : ""}</div>
@@ -403,6 +404,14 @@ function vSignali(arg) {
   const list = fl.map(s => `<div class="item k-${isShadow(s) ? "shadow" : "real"} ${sel && s.id === sel.id ? "on" : ""}" data-go="#/signali/${esc(s.id)}"><span class="coin ${isShadow(s) ? "g" : ""}"><i>${esc(dn(base(s.pair)).slice(0, 2))}</i></span>
     <div class="t"><b>${esc(dn(s.pair))} · ${isSR(s) ? "SJENA · S/R" + (isShort(s) ? " · SHORT" : "") : isShadow(s) ? "SJENA" + (isShort(s) ? " · SHORT" : "") : "PRAVI · " + (isShort(s) ? "SHORT" : "LONG")}</b><span>${fmtT(s.created)} · ${s.tf} · ocjena ${s.score}</span></div>${statusTag(s)}
     <div class="lv"><div class="live"><i>Cijena</i><b data-live="${esc(s.pair)}" data-k="price">${S.prices[s.pair] ? fmtP(S.prices[s.pair]) : "–"}</b><em data-live="${esc(s.pair)}" data-k="spp" data-sid="${esc(s.id)}"></em></div><div><i>Ulaz</i><b>${fmtP(s.entry)}</b></div><div><i>Stop</i><b class="down">${fmtP(s.stop_cur || s.stop)}</b></div><div><i>T1</i><b class="up">${fmtP(s.t1)}</b></div><div><i>T2</i><b class="up">${fmtP(s.t2)}</b></div><div><i>T3</i><b class="up">${fmtP(s.t3)}</b></div></div></div>`).join("") || '<div class="empty">Nema otvorenih signala. Zatvoreni su u <a href="#/arhiva">Arhivi</a>.</div>';
+  if (isNarrow()) {
+    if (!arg || !all.find(s => s.id === arg)) return shell("Signali i analiza", "Dodirnite signal da vidite graf, brojeve i razloge.", `<div class="legend"><span class="tag real">Pravi signal</span><span class="tag shadow">Sjena (probni)</span></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px" id="sfilter">${[["svi", "Svi"], ["pravi", "Pravi"], ["sjene", "Sjene"]].map(([k, t]) => `<button class="chip-btn ${sigFilter.f === k ? "on" : ""}" data-f="${k}">${t} (${cnt[k]})</button>`).join("")}</div>
+    <input class="txt" id="sq" placeholder="Traži par, npr. DODO" value="${esc(sigFilter.q)}" style="margin-bottom:10px"><div class="list">${list}</div>`);
+    const d = all.find(s => s.id === arg);
+    const chartBlock = `<div class="card mt sgc"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px"><h2 style="margin:0">Graf</h2><div class="seg" id="sgtf">${Object.keys(INTERVAL).map(k => `<button data-tf="${k}" class="${chartState.tf === k ? "on" : ""}">${k}</button>`).join("")}</div></div><div class="chartwrap sgwrap" id="sgchart"></div></div>`;
+    return shell(dn(d.pair), "", `<div style="margin-bottom:12px"><a class="btn" href="#/signali" id="sgback">← Svi signali</a></div>` + (isOpen(d) ? "" : '<div class="note" style="margin:0 0 10px">Ovaj signal je zatvoren (samo pregled).</div>') + sigDetail(d, false, chartBlock));
+  }
   let det = '<div class="card empty">' + (rows.length ? "Odaberite signal s popisa." : "Nema otvorenih signala.") + '</div>';
   if (sel) det = (isOpen(sel) ? "" : '<div class="note" style="margin:0 0 10px">Nema otvorenih signala. Ispod je zadnji zatvoreni signal (' + esc(dn(sel.pair)) + '), samo za pregled.</div>') + sigDetail(sel, false);
   return shell("Signali i analiza", "Otvoreni signali. Odaberite signal da vidite cijelu analizu i razloge. Zatvoreni su u Arhivi.", `<div class="split"><div>
@@ -633,7 +642,8 @@ function bind(arg) {
   if (currentView === "pregled" || currentView === "moj") main.querySelectorAll("#eqseg button").forEach(b => b.addEventListener("click", () => { eqRange = b.dataset.r; lsSet("eqRange", eqRange); render(); }));
   if (currentView === "signali") {
     main.querySelectorAll("#sfilter button").forEach(b => b.addEventListener("click", () => { sigFilter.f = b.dataset.f; render(); }));
-    const q = $("#sq"); q.addEventListener("input", () => { sigFilter.q = q.value; const pos = q.selectionStart; render(); const n = $("#sq"); n.focus(); n.setSelectionRange(pos, pos); });
+    const q = $("#sq"); if (q) q.addEventListener("input", () => { sigFilter.q = q.value; const pos = q.selectionStart; render(); const n = $("#sq"); n.focus(); n.setSelectionRange(pos, pos); });
+    if ($("#sgchart")) bindSigChart(arg);
   }
   if (currentView === "arhiva") {
     main.querySelectorAll("#afilter button").forEach(b => b.addEventListener("click", () => { arch.f = b.dataset.f; render(); }));
@@ -654,6 +664,13 @@ function bind(arg) {
   const dfb = $("#dfbar"); if (dfb) dfb.querySelectorAll("button").forEach(b => b.addEventListener("click", () => { dateF = b.dataset.df; lsSet("dateF", dateF); render(); }));
   if (currentView === "dnevnik") bindDnevnik(arg);
   if (currentView === "graf") bindChart();
+}
+function bindSigChart(id) {
+  const sel = S.rows.find(x => x.id === id); if (!sel) return;
+  chartState.pair = sel.pair; chartState.sig = sel.id; chartState.show = "all"; lsSet("chartState", chartState);
+  const wrap = $("#sgchart"); chart = new PriceChart(wrap, { ema: chartState.ema, vol: chartState.vol, rsi: false, macd: false }); chart.setTheme(document.documentElement.dataset.theme);
+  chart.setLines(allLines()); loadKlines();
+  $("#sgtf").querySelectorAll("button").forEach(b => b.addEventListener("click", () => { chartState.tf = b.dataset.tf; lsSet("chartState", chartState); $("#sgtf").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); chart.setData([], chartState.tf); loadKlines(); }));
 }
 function bindChart() {
   const wrap = $("#gwrap"); chart = new PriceChart(wrap, { ema: chartState.ema, vol: chartState.vol, rsi: chartState.rsi, macd: chartState.macd }); chart.setTheme(document.documentElement.dataset.theme);
