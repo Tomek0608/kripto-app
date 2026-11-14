@@ -396,7 +396,7 @@ function sigDetail(sel, onChart, mid) {
 
 function vSignali(arg) {
   const all = realRows().sort((a, b) => b.created - a.created);
-  const rows = all.filter(isOpen);  // popis: samo otvoreni; zatvoreni su u Arhivi
+  const rows = all.filter(isOpen).sort((a, b) => (b.score - a.score) || (b.created - a.created));  // popis: samo otvoreni, od najvise do najmanje bodova; zatvoreni su u Arhivi
   if (!["svi", "pravi", "sjene"].includes(sigFilter.f)) sigFilter.f = "svi";
   const cnt = { svi: rows.length, pravi: rows.filter(isReal).length, sjene: rows.filter(isShadow).length };
   const fl = rows.filter(s => (sigFilter.f === "svi" || (sigFilter.f === "pravi" && isReal(s)) || (sigFilter.f === "sjene" && isShadow(s))) && (!sigFilter.q || s.pair.includes(sigFilter.q.toUpperCase())));
