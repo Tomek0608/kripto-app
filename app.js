@@ -81,7 +81,7 @@ function liveVal(el) {
   else if (s && k === "state") { const hit = p >= s.t3 ? "T3 dosegnut" : p >= s.t2 ? "T2 dosegnut" : p >= s.t1 ? "T1 dosegnut" : p <= s.stop ? "Ispod stopa" : "U tijeku"; t = hit; c = p <= s.stop ? "down" : p >= s.t1 ? "up" : ""; }
   if (el.textContent !== t) el.textContent = t; if (c2) c = c2; if (c !== undefined && k !== "price") el.className = (el.className.replace(/\b(up|down)\b/g, "").trim() + " " + c).trim();
 }
-function paintLive() { document.querySelectorAll("[data-live]").forEach(liveVal); if (currentView === "graf" && chart && chartState.pair && S.prices[chartState.pair]) { chart.setLive(S.prices[chartState.pair]); paintChartHead(); } topPills(); }
+function paintLive() { document.querySelectorAll("[data-live]").forEach(liveVal); moneyRefresh(); if (currentView === "graf" && chart && chartState.pair && S.prices[chartState.pair]) { chart.setLive(S.prices[chartState.pair]); paintChartHead(); } topPills(); }
 setInterval(() => topPills(), 2000);
 
 /* ---------------- okvir ---------------- */
@@ -129,6 +129,7 @@ function boot() {
   $("#gsearch").addEventListener("keydown", e => { if (e.key === "Enter") { const v = realSym(e.target.value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "")); if (v) { location.hash = "#/graf/" + (v.endsWith("USDT") ? v : v + "USDT"); e.target.value = ""; e.target.blur(); } } });
   const tick = () => { const d = new Date(); $("#clock").textContent = new Intl.DateTimeFormat("hr-HR", { timeZone: TZ, weekday: "short", day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).format(d); }; tick(); setInterval(tick, 10000);
   try { if ("serviceWorker" in navigator && /^https:|^http:\/\/localhost/.test(location.href)) navigator.serviceWorker.register("sw.js").catch(() => {}); } catch (e) {}
+  document.addEventListener("click", e => { const b = e.target.closest && e.target.closest("[data-mt]"); if (!b) return; moneyTab = b.dataset.mt; const h = document.getElementById("moneyblk"); if (h) { moneyAt = Date.now(); h.outerHTML = moneyBlock(h.dataset.src); } });
   window.addEventListener("hashchange", render); render(); refreshData(); setInterval(() => refreshData(true), Math.max(20, cfg.refresh) * 1000);
 }
 function route() { const h = location.hash.replace(/^#\/?/, "").split("/"); return { view: h[0] || "signali", arg: decodeURIComponent(h[1] || "") }; }
@@ -426,6 +427,66 @@ function vArhiva() {
 }
 
 /* ---------------- Statistika ---------------- */
+
+/* ---------------- Analitika novca (Statistika signala i Moja statistika) ---------------- */
+let moneyTab = "pravi", moneyAt = 0;
+const MPAL = ["#F28A3A", "#6FD58F", "#6AA7FF", "#E8B04A", "#B58CFF", "#4FC3C7", "#E58AB8"];
+function sigMoney(s) { const risk = s.risk > 0 ? s.risk : START_EQUITY * 0.01, pct = (s.entry - s.stop) / s.entry, full = pct > 0 ? risk / pct : 0, pos = s.pos > 0 ? s.pos : full, k = full > 0 ? pos / full : 1; return { risk, pos, k }; }
+function sigRes(s) { const m = sigMoney(s); return (s.kind === "real" && isFinite(s.pnl)) ? s.pnl : (isFinite(s.rnet) ? s.rnet * m.risk * m.k : 0); }
+function sigOpenRes(s, p) { const m = sigMoney(s), rem = isFinite(s.remaining) ? s.remaining : 1, part = isFinite(s.grossR) ? s.grossR : 0, r1 = s.entry - s.stop, live = isFinite(p) && r1 > 0 ? rem * (p - s.entry) / r1 : 0; return (part + live) * m.risk * m.k; }
+function donutSvg(parts, ctr, sub) {
+  const tot = parts.reduce((a, p) => a + p.v, 0); if (!(tot > 0)) return '<div class="muted" style="padding:36px 0;text-align:center">Nema podataka.</div>';
+  const R = 42, C = 2 * Math.PI * R; let off = 0;
+  const segs = parts.map(p => { const len = p.v / tot * C, g = parts.length > 1 ? 1.5 : 0; const e = `<circle r="${R}" cx="60" cy="60" fill="none" style="stroke:${p.c}" stroke-width="18" stroke-dasharray="${Math.max(0.1, len - g)} ${C}" stroke-dashoffset="${-off}" transform="rotate(-90 60 60)"><title>${esc(p.l)}: ${fmtN(p.v)} USDT</title></circle>`; off += len; return e; }).join("");
+  return `<svg viewBox="0 0 120 120" class="dnut">${segs}<text x="60" y="58" text-anchor="middle" class="dc">${ctr}</text><text x="60" y="73" text-anchor="middle" class="ds">${sub}</text></svg>`;
+}
+function groupParts(map, colors) {
+  const a = Object.entries(map).map(([l, v]) => ({ l: dn(l), v })).filter(x => x.v > 0).sort((x, y) => y.v - x.v); let top = a.slice(0, 6); const rest = a.slice(6).reduce((t, x) => t + x.v, 0);
+  top = top.map((x, i) => ({ ...x, c: colors ? colors[i % colors.length] : MPAL[i % MPAL.length] })); if (rest > 0) top.push({ l: "Ostalo", v: rest, c: "#8a7f74" }); return top;
+}
+function legendHtml(parts) { const t = parts.reduce((a, p) => a + p.v, 0); return parts.map(p => `<div class="lg"><i style="background:${p.c}"></i><span>${esc(p.l)}</span><b>${fmtN(p.v)}</b><em>${(p.v / t * 100).toFixed(0)}%</em></div>`).join(""); }
+function mCard(title, cap, parts, ctr, sub) { return `<div class="card mc"><h3>${title}</h3><div class="note">${cap}</div><div class="dwrap">${donutSvg(parts, ctr, sub)}</div><div class="leg">${parts.length ? legendHtml(parts) : ""}</div></div>`; }
+function moneyData(src) {
+  const items = [];
+  if (src === "sig") {
+    const tab = moneyTab, pick = s => tab === "pravi" ? s.kind === "real" : tab === "sr" ? isSR(s) : (isShadow(s) && !isSR(s));
+    realRows().filter(pick).filter(s => inRange(isClosed(s) ? s.exit : s.created)).forEach(s => { const m = sigMoney(s); items.push(isClosed(s) ? { pair: s.pair, inv: m.pos, closed: true, res: sigRes(s) } : { pair: s.pair, inv: m.pos, closed: false, res: sigOpenRes(s, S.prices[s.pair]), invOpen: m.pos * (isFinite(s.remaining) ? s.remaining : 1), live: S.prices[s.pair] != null }); });
+  } else {
+    J().filter(t => inRange(jOpen(t) ? t.t : lastExit(t))).forEach(t => { const c = jcalc(t, S.prices[t.pair]); items.push(jOpen(t) ? { pair: t.pair, inv: t.usdt, closed: false, res: c.total, invOpen: c.rem * t.p, live: S.prices[t.pair] != null } : { pair: t.pair, inv: t.usdt, closed: true, res: c.realized }); });
+  }
+  return items;
+}
+function moneyBlock(src) {
+  const items = moneyData(src), cl = items.filter(x => x.closed), op = items.filter(x => !x.closed);
+  const win = cl.filter(x => x.res > 0).reduce((a, x) => a + x.res, 0), loss = Math.abs(cl.filter(x => x.res < 0).reduce((a, x) => a + x.res, 0));
+  const opRes = op.reduce((a, x) => a + x.res, 0), opInv = op.reduce((a, x) => a + x.invOpen, 0), invAll = items.reduce((a, x) => a + x.inv, 0), invCl = cl.reduce((a, x) => a + x.inv, 0), net = win - loss, total = net + opRes;
+  const noLive = op.some(x => !x.live);
+  const sig = src === "sig", full = dateF === "sve";
+  const tabs = sig ? `<div class="mtabs">${[["pravi", "Pravi signali"], ["sjene", "Sjene"], ["sr", "S/R sjena"]].map(([k, t]) => `<button class="chip-btn ${moneyTab === k ? "on" : ""}" data-mt="${k}">${t}</button>`).join("")}</div>` : "";
+  const intro = !sig ? "Samo tvoji trejdovi iz dnevnika, po tvojoj cijeni i nakon provizije."
+    : moneyTab === "pravi" ? `Fiktivni račun od ${fmtN(START_EQUITY, 0)} USDT. Ovo nije tvoj stvarni novac, nego evidencija kako bi prošli signali. Pozicija se računa pravilom 1% rizika.`
+    : `Sjene nemaju stvarnu poziciju. Ovdje je izračun kao da je ušao s istim pravilom (1% rizika od ${fmtN(START_EQUITY, 0)} USDT), samo radi usporedbe.`;
+  const row = (l, v, c, sub) => `<div class="wf"><div><b>${l}</b><span>${sub}</span></div><strong class="${c}">${v}</strong></div>`;
+  const wf = (sig && full ? row("Početak", fmtN(START_EQUITY) + " USDT", "", "iznos s kojim je fiktivni račun krenuo") : "")
+    + row("+ Dobiveno", (win > 0 ? "+" : "") + fmtN(win) + " USDT", "up", sig ? "zarada zatvorenih signala koji su završili u plusu" : "zarada zatvorenih trejdova u plusu, nakon provizije")
+    + row("− Izgubljeno", (loss > 0 ? "−" : "") + fmtN(loss) + " USDT", "down", sig ? "gubitak zatvorenih signala koji su završili u minusu" : "gubitak zatvorenih trejdova u minusu")
+    + row("+ Otvorene pozicije", jm(opRes) + " USDT", cls(opRes), "trenutni plus ili minus pozicija koje još traju");
+  const eqLab = sig ? (full ? (moneyTab === "pravi" ? "= Stanje računa" : "= Zamišljeno stanje računa") : "= Rezultat u razdoblju") : "= Ukupan rezultat", eqVal = sig && full ? fmtN(START_EQUITY + total) + " USDT" : jm(total) + " USDT";
+  const eqCls = sig && full ? cls(total) : cls(total);
+  const ratioParts = [{ l: "Dobiveno", v: win, c: "var(--up)" }, { l: "Izgubljeno", v: loss, c: "var(--down)" }].filter(x => x.v > 0);
+  const byInv = {}; items.forEach(x => { byInv[x.pair] = (byInv[x.pair] || 0) + x.inv; });
+  const netP = {}; cl.forEach(x => { netP[x.pair] = (netP[x.pair] || 0) + x.res; });
+  const plusM = {}, minM = {}; Object.entries(netP).forEach(([k, v]) => { if (v > 0) plusM[k] = v; else if (v < 0) minM[k] = -v; });
+  const plusS = Object.values(plusM).reduce((a, v) => a + v, 0), minS = Object.values(minM).reduce((a, v) => a + v, 0);
+  const gl = [["Uloženo", "iznos pozicije, koliko je USDT bilo uloženo" + (sig ? ". Veličina se računa pravilom 1% rizika." : ".")], ["Dobiveno i izgubljeno", "rezultat zatvorenog " + (sig ? "signala" : "trejda") + " nakon što je stigao do cilja ili stopa."], ["Otvorene pozicije", "trenutni plus ili minus pozicije koja još traje, računa se s cijenom uživo."], ["Parovi u plusu i minusu", "svaki par se razvrstava prema neto rezultatu svih svojih zatvorenih " + (sig ? "signala" : "trejdova") + ", pa je u plusu ili u minusu, nikad u oba."]];
+  return `<div id="moneyblk" data-src="${src}"><div class="card mhead"><div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap"><h2 style="margin:0">Analitika novca</h2>${tabs}</div><div class="note" style="margin-top:8px">${intro}</div></div>
+  <div class="mrow1"><div class="card"><h3>Kako je nastao rezultat</h3><div class="note">Uloženo svega: <b>${fmtN(invAll)} USDT</b> (zatvoreno i otvoreno)</div>${wf}<div class="wf tot"><div><b>${eqLab}</b></div><strong class="${eqCls}">${eqVal}</strong></div></div>
+    <div class="card"><h3>Otvorene pozicije</h3><div class="kv"><span>Broj otvorenih</span><b>${op.length}</b></div><div class="kv"><span>Uloženo u njih</span><b>${fmtN(opInv)} USDT</b></div><div class="kv"><span>Trenutni rezultat</span><b class="${cls(opRes)}">${jm(opRes)} USDT</b></div><div class="kv"><span>Trenutni rezultat (%)</span><b class="${cls(opRes)}">${opInv > 0 ? fmtPct(opRes / opInv * 100) : "–"}</b></div>${noLive ? '<div class="note" style="margin-top:8px">Cijena uživo još se učitava, rezultat otvorenih može biti netočan.</div>' : '<div class="note" style="margin-top:8px">Računa se s cijenom uživo.</div>'}</div></div>
+  <div class="mrow2">${mCard("Dobiveno i izgubljeno", "naspram uloženog u zatvorene: " + fmtN(invCl) + " USDT", ratioParts, invCl > 0 ? fmtPct(net / invCl * 100) : "–", "neto / uloženo")}${mCard("Gdje je novac uložen", "iznos pozicije po paru", groupParts(byInv), fmtN(invAll, 0), "USDT")}${mCard("Parovi u plusu", "neto po paru, zatvoreni " + (sig ? "signali" : "trejdovi"), groupParts(plusM, ["#6FD58F", "#4FB87A", "#2f8f5c", "#8fe0a8", "#5fc48a", "#3d9b6a", "#a8e6bf"]), "+" + fmtN(plusS, 1), "USDT")}${mCard("Parovi u minusu", "neto po paru, zatvoreni " + (sig ? "signali" : "trejdovi"), groupParts(minM, ["#FF7B70", "#E0594E", "#B8433A", "#ff9a90", "#d4685d", "#a04038", "#ffb3ab"]), "−" + fmtN(minS, 1), "USDT")}</div>
+  <details class="card mgl"><summary>Pojmovi</summary>${gl.map(([a, b]) => `<div class="kv"><span><b>${a}</b></span><span style="text-align:right;max-width:70%">${b}</span></div>`).join("")}</details></div>`;
+}
+function moneyRefresh() { const mb = document.getElementById("moneyblk"); if (mb && Date.now() - moneyAt > 5000) { moneyAt = Date.now(); const pos = $("#main") ? $("#main").scrollTop : 0; mb.outerHTML = moneyBlock(mb.dataset.src); } }
+
 function vStatSig() {
   const rows = realRows().filter(s => inRange(isClosed(s) ? s.exit : s.created)), real = rows.filter(s => s.kind === "real" && s.status === "closed"), sh = rows.filter(s => s.status === "shadow_closed" && !isSR(s)), srr = rows.filter(s => s.status === "shadow_closed" && isSR(s));
   const card = (t, rs, dd) => { const s = summarize(rs, "rnet"); if (!s) return `<div class="card"><h2>${t}</h2><div class="empty">Nema zatvorenih signala.</div></div>`;
@@ -436,8 +497,8 @@ function vStatSig() {
     return `<tr><td>${lo}–${Math.min(hi - 1, 100)}</td><td>${c(a)}</td><td>${c(b)}</td></tr>`; };
   const byR = k => { const o = {}; rows.filter(isClosed).forEach(s => { const key = s[k]; (o[key] = o[key] || []).push(s); }); return o; };
   const tfr = byR("tf"), rsn = byR("reason");
-  return shell("Statistika signala", "Što bi se dogodilo da se točno slušaju stop i ciljevi. Pravi signali i sjene, nakon troškova. Strategija se ne mijenja prije 4 tjedna ili 100 zatvorenih signala.", dateBar() + `
-  <div class="grid g3">${card("Pravi signali", real, true)}${card("Sjene (bez obavijesti)", sh, false)}${card("S/R varijanta (sjena)", srr, false)}
+  return shell("Statistika signala", "Što bi se dogodilo da se točno slušaju stop i ciljevi. Pravi signali i sjene, nakon troškova. Strategija se ne mijenja prije 4 tjedna ili 100 zatvorenih signala.", dateBar() + moneyBlock("sig") + `
+  <div class="grid g3 mt">${card("Pravi signali", real, true)}${card("Sjene (bez obavijesti)", sh, false)}${card("S/R varijanta (sjena)", srr, false)}
   <div class="card"><h2>Napredak do pregleda</h2><div style="margin-top:12px"><div class="kv"><span>Zatvorenih pravih</span><b>${real.length} / 100</b></div><div class="bar" style="margin:8px 0 14px"><div style="width:${Math.min(100, real.length)}%;background:var(--red)"></div></div>
   <div class="kv"><span>Ukupno signala</span><b>${rows.length}</b></div><div class="kv"><span>Otvorenih</span><b>${rows.filter(isOpen).length}</b></div></div></div></div>
   <div class="grid g2 mt" style="grid-template-columns:1fr 1fr"><div class="card"><h2>Po ocjeni signala</h2><div class="sub">Broj · pogodaka · prosječni R. Pomaže pri odluci o pragu.</div>
@@ -480,8 +541,8 @@ function vStatMoja() {
   const cmpRows = cmp.map(x => { const mr = myR(x), d = mr - x.sg.rnet, sp = x.sg.exit; return `<tr><td>${coin(x.t.pair)}</td><td>${kindTag(x.sg)}</td><td class="muted">${fmtT(x.t.exits[x.t.exits.length - 1].t)}</td><td class="r">${fmtP(x.c.avgExit)}</td><td class="r ${cls(mr)}"><b>${isNaN(mr) ? "–" : fmtR(mr)}</b></td><td class="muted">${REASON_TXT[x.sg.reason] || "–"} · ${fmtT(sp)}</td><td class="r ${cls(x.sg.rnet)}"><b>${fmtR(x.sg.rnet)}</b></td><td class="r ${cls(d)}"><b>${isNaN(d) ? "–" : fmtR(d)}</b></td></tr>`; }).join("");
   const dsum = cmp.reduce((a, x) => a + (myR(x) - x.sg.rnet || 0), 0);
   const list = [...cs].reverse().map(x => `<tr><td>${coin(x.t.pair)}</td><td class="muted">${fmtT(x.t.t)}</td><td class="r">${fmtP(x.t.p)}</td><td class="muted">${fmtT(x.t.exits[x.t.exits.length - 1].t)}</td><td class="r">${fmtP(x.c.avgExit)}</td><td class="r">${fmtN(x.t.usdt)}</td><td class="r ${cls(x.c.realized)}"><b>${jm(x.c.realized)}</b></td><td class="r ${cls(x.c.pct)}">${fmtPct(x.c.pct)}</td></tr>`).join("");
-  return shell("Moja statistika", "Računa se samo iz tvog dnevnika, od trenutka kad si ti označio izlaz, po tvojoj cijeni i nakon provizije.", dateBar() + `
-  <div class="grid g3"><div class="card"><h2>Moji trejdovi</h2><div style="margin-top:8px">${kv("Zatvorenih", n)}${kv("Još otvorenih", op.length)}${kv("Uspješnost", n ? Math.round(wins.length / n * 100) + "%" : "–")}${kv("Profit factor", n ? (gl > 0 ? fmtN(gw / gl) : gw > 0 ? "∞" : "–") : "–")}</div></div>
+  return shell("Moja statistika", "Računa se samo iz tvog dnevnika, od trenutka kad si ti označio izlaz, po tvojoj cijeni i nakon provizije.", dateBar() + moneyBlock("moj") + `
+  <div class="grid g3 mt"><div class="card"><h2>Moji trejdovi</h2><div style="margin-top:8px">${kv("Zatvorenih", n)}${kv("Još otvorenih", op.length)}${kv("Uspješnost", n ? Math.round(wins.length / n * 100) + "%" : "–")}${kv("Profit factor", n ? (gl > 0 ? fmtN(gw / gl) : gw > 0 ? "∞" : "–") : "–")}</div></div>
     <div class="card"><h2>Zarada</h2><div style="margin-top:8px">${kv("Ukupno realizirano", jm(sum) + " USDT", cls(sum))}${kv("Prosjek po trejdu", n ? jm(sum / n) + " USDT" : "–", cls(sum))}${kv("Prosjek po trejdu (%)", n ? fmtPct(avgPct) : "–", cls(avgPct))}${kv("Povrat na uloženo", inv ? fmtPct(sum / inv * 100) : "–", cls(sum))}</div></div>
     <div class="card"><h2>Najbolji i najgori</h2><div style="margin-top:8px">${kv("Najbolji", best ? best.t.pair + " " + jm(best.c.realized) : "–", best ? cls(best.c.realized) : "")}${kv("Najgori", worst ? worst.t.pair + " " + jm(worst.c.realized) : "–", worst ? cls(worst.c.realized) : "")}${kv("Pravi signali", cs.filter(x => x.sg && isReal(x.sg)).length)}${kv("Ručni ulazi", cs.filter(x => !x.sg).length)}</div></div></div>
   <div class="card mt"><h2>Zatvoreni trejdovi</h2><table><tr><th>Par</th><th>Ulaz</th><th class="r">Cijena ulaza</th><th>Izlaz</th><th class="r">Cijena izlaza</th><th class="r">USDT</th><th class="r">Zarada</th><th class="r">%</th></tr>${list || '<tr><td colspan="8" class="empty">Još nema zatvorenih trejdova u dnevniku.</td></tr>'}</table></div>`);
