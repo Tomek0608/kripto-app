@@ -26,7 +26,7 @@ function parseCSV(text) {
 function normRow(r) {
   const f = x => (x === "" || x == null) ? NaN : parseFloat(x);
   return {
-    id: r.id, kind: r.kind, status: r.status, pair: r.pair, tf: r.tf, score: f(r.score),
+    id: r.id, kind: r.kind, side: String(r.side || "LONG").toUpperCase() === "SHORT" ? "SHORT" : "LONG", status: r.status, pair: r.pair, tf: r.tf, score: f(r.score),
     version: r.version || "", mfe: f(r.mfe_r), mae: f(r.mae_r), btc7: f(r.btc7), created: f(r.created_ms), entry: f(r.entry), stop: f(r.stop), t1: f(r.t1), t2: f(r.t2), t3: f(r.t3),
     stopCur: f(r.stop_cur), stopPct: f(r.stop_pct), risk: f(r.risk_usdt) || 0, pos: f(r.pos_value) || 0,
     remaining: f(r.remaining), hit: (r.hit || "").split(",").filter(Boolean),
@@ -34,6 +34,8 @@ function normRow(r) {
     pnl: f(r.pnl_usdt), expires: f(r.expires_ms), last: f(r.last_ms), reasons: r.reasons || "",
   };
 }
+const isShort = s => !!s && s.side === "SHORT";
+const sdOf = s => isShort(s) ? -1 : 1;
 const isOpen = s => s.status === "open" || s.status === "shadow_open";
 const isClosed = s => s.status === "closed" || s.status === "shadow_closed";
 const isReal = s => s.kind === "real" && (s.status === "open" || s.status === "closed");
