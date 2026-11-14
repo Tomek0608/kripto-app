@@ -23,6 +23,13 @@ class PriceChart {
     this.barW = 9; this.start = 0; this.cross = null; this.addMode = false; this.onAdd = null; this.onHover = null;
     this.drag = null; this.dirty = true; this.axisW = 76; this.axisH = 24;
     this.ro = new ResizeObserver(() => this.resize()); this.ro.observe(wrap);
+    /* gumbi + / - za povecanje i smanjenje (vremenska os ↔ i os cijene ↕), korak je blag */
+    const zb = this.zb = document.createElement("div"); zb.className = "zbtns";
+    [["↔", "+", "Povećaj (vrijeme)", () => this.zoomT(1.25)], ["↔", "−", "Smanji (vrijeme)", () => this.zoomT(1 / 1.25)], ["↕", "+", "Povećaj (cijena)", () => this.zoomP(1.25)], ["↕", "−", "Smanji (cijena)", () => this.zoomP(1 / 1.25)]].forEach(([ic, sg, tt, fn]) => {
+      const b = document.createElement("button"); b.type = "button"; b.title = tt; b.innerHTML = "<small>" + ic + "</small>" + sg;
+      b.addEventListener("mousedown", e => e.stopPropagation()); b.addEventListener("touchstart", e => e.stopPropagation(), { passive: true });
+      b.addEventListener("click", e => { e.preventDefault(); e.stopPropagation(); fn(); }); zb.appendChild(b); });
+    wrap.appendChild(zb);
     const cv = this.cv;
     cv.addEventListener("mousedown", e => { this.drag = { x: e.clientX, s: this.start, moved: false }; });
     window.addEventListener("mouseup", this._up = e => {
@@ -74,7 +81,7 @@ class PriceChart {
     this.loop = () => { if (this.dirty) { this.dirty = false; this.draw(); } this.raf = requestAnimationFrame(this.loop); };
     this.raf = requestAnimationFrame(this.loop); this.resize();
   }
-  destroy() { cancelAnimationFrame(this.raf); this.ro.disconnect(); window.removeEventListener("mouseup", this._up); window.removeEventListener("mousemove", this._mv); window.removeEventListener("mousemove", this._ymv); window.removeEventListener("mouseup", this._yup); this.cv.remove(); }
+  destroy() { cancelAnimationFrame(this.raf); this.ro.disconnect(); window.removeEventListener("mouseup", this._up); window.removeEventListener("mousemove", this._mv); window.removeEventListener("mousemove", this._ymv); window.removeEventListener("mouseup", this._yup); this.cv.remove(); if (this.zb) this.zb.remove(); }
   pos(e) { const r = this.cv.getBoundingClientRect(), sx = r.width ? this.W / r.width : 1, sy = r.height ? this.H / r.height : 1; return { x: (e.clientX - r.left) * sx, y: (e.clientY - r.top) * sy }; }
   resize() { const w = this.wrap.clientWidth, h = this.wrap.clientHeight, d = window.devicePixelRatio || 1;
     this.W = w; this.H = h; this.cv.width = w * d; this.cv.height = h * d; this.ctx.setTransform(d, 0, 0, d, 0, 0); this.ov.width = w * d; this.ov.height = h * d; this.ovx.setTransform(d, 0, 0, d, 0, 0); this.dirty = true; }
@@ -90,6 +97,8 @@ class PriceChart {
   calc() { const cl = this.c.map(k => k.c);
     this.e20 = emaArr(cl, 20); this.e50 = emaArr(cl, 50); this.e200 = emaArr(cl, 200); this.rsi = rsiArr(cl); this.mc = macdArr(cl); }
   reset() { this.ys = 1; this.barW = 9; const vis = (this.W - this.axisW) / this.barW; this.start = this.c.length - vis + 8; this.clamp(); this.dirty = true; }
+  zoomT(f) { const plotW = this.W - this.axisW, x = plotW * .5, idx = this.start + x / this.barW; this.barW = Math.min(40, Math.max(2.5, this.barW * f)); this.start = idx - x / this.barW; this.clamp(); this.dirty = true; }
+  zoomP(f) { this.ys = Math.min(8, Math.max(.12, (this.ys || 1) / f)); this.dirty = true; }
   clamp() { const vis = (this.W - this.axisW) / this.barW; this.start = Math.max(-vis * .6, Math.min(this.c.length - vis * .4, this.start)); }
   update(k) { // k: {t,o,h,l,c,v}
     const n = this.c.length; if (!n) return;
