@@ -58,6 +58,7 @@ class PriceChart {
     window.addEventListener("mousemove", this._ymv = e => { if (ya) yset(e.clientY); });
     window.addEventListener("mouseup", this._yup = () => { ya = null; });
     az.addEventListener("dblclick", () => { this.ys = 1; this.dirty = true; });
+    az.addEventListener("wheel", e => { e.preventDefault(); this.ys = Math.min(8, Math.max(.12, this.ys * (e.deltaY > 0 ? 1.1 : 1 / 1.1))); this.dirty = true; }, { passive: false });
     /* dodir: jedan prst povlaci graf, dva prsta zumiraju, dodir postavlja liniju u nacinu "+ Moja linija" */
     let tp = null; const dist = e => Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
     cv.addEventListener("touchstart", e => { if (e.touches.length === 2) tp = { pin: dist(e), bw: this.barW, mid: (e.touches[0].clientX + e.touches[1].clientX) / 2, st: this.start };
