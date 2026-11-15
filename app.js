@@ -39,7 +39,8 @@ async function refreshData(quiet) {
     else { S.rows = await loadRemote(cfg); S.source = "github"; S.err = ""; try { S.engine = await loadEngineAge(cfg); } catch (e) {} }
     S.updated = Date.now();
   } catch (e) { S.err = String(e.message || e); if (!S.rows.length) { S.rows = await loadDemo(); S.source = "demo"; } }
-  notifyChanges(); jPull(); jAuto(); syncLive(); const sg = S.source + "|" + S.err + "|" + JSON.stringify(S.rows) + "|" + JSON.stringify(S.engine || ""); const same = quiet && sg === S.lastSig; S.lastSig = sg; if (!same && (!quiet || currentView !== "graf")) render(); topPills();
+  try { const er = await fetch(`${BINANCE}/api/v3/ticker/price?symbol=EURUSDT`); const ej = await er.json(); if (+ej.price > 0) S.eur = +ej.price; } catch (e) {}
+  notifyChanges(); jPull(); jAuto(); syncLive(); const sg = S.source + "|" + S.err + "|" + JSON.stringify(S.rows) + "|" + JSON.stringify(S.engine || "") + "|" + (S.eur || 0).toFixed(2); const same = quiet && sg === S.lastSig; S.lastSig = sg; if (!same && (!quiet || currentView !== "graf")) render(); topPills();
 }
 /* obavijesti: novi signal, zatvoren signal */
 function notify(msg) {
@@ -226,9 +227,13 @@ function vPregled() {
   return shell("Pregled signala", `${greet}, Tomislav. Što radi strategija, neovisno o tvojim odlukama. Zadnje osvježavanje u ${S.updated ? fmtHM(S.updated) : "–"}.`, sigBody);
 }
 function vMoj() {
-  const hr = +new Intl.DateTimeFormat("en", { timeZone: TZ, hour: "numeric", hour12: false }).format(new Date()) % 24, greet = hr < 10 ? "Dobro jutro" : hr < 18 ? "Dobar dan" : "Dobra večer";
-  return shell("Moj pregled", `${greet}, Tomislav. Tvoji stvarni trejdovi iz dnevnika. Zadnje osvježavanje u ${S.updated ? fmtHM(S.updated) : "–"}.`, mojPregled());
+  return shell("Moj pregled", "", mojPregled());
 }
+/* stanje racuna: pri svakom otvaranju aplikacije je prekriveno, oko ga otkriva; uz USDT i iznos u eurima (tecaj EURUSDT s Binancea) */
+let balHidden = true;
+const MASK = "••••••";
+const eurTxt = v => S.eur > 0 ? fmtN(v / S.eur) + " €" : "– €";
+const eyeBtn = () => `<button class="btn sm" data-eye title="${balHidden ? "Prikaži stanje" : "Sakrij stanje"}" aria-label="${balHidden ? "Prikaži stanje" : "Sakrij stanje"}" style="padding:4px 9px;line-height:1;display:inline-flex;align-items:center">${balHidden ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><path d="M1 1l22 22"/></svg>' : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'}</button>`;
 function mojPregled() {
   const a = J(), tt = jTotals(), cl = a.filter(t => !jOpen(t)), op = a.filter(jOpen);
   const cc = cl.map(t => ({ t, c: jcalc(t) })), wins = cc.filter(x => x.c.realized > 0), gw = wins.reduce((s, x) => s + x.c.realized, 0), gl = -cc.filter(x => x.c.realized <= 0).reduce((s, x) => s + x.c.realized, 0);
@@ -247,14 +252,14 @@ function mojPregled() {
   const bar = (lab, n, col) => { const pc = cc.length ? n / cc.length * 100 : 0; return `<div class="row-bar"><span>${lab}</span><div class="bar"><div style="width:${pc}%;background:${col}"></div></div><b class="r">${pc.toFixed(0)}%</b></div>`; };
   const nl = cc.length - wins.length;
   return `<div class="grid g4">
-    <div class="card hero lift ${tt.total >= 0 ? "pos" : ""}"><div class="sub">Moj račun</div><div class="big">${st0 > 0 ? fmtN(st0 + tt.total) : jm(tt.total)} <span style="font-size:16px;font-weight:500">USDT</span></div><span class="chip">${st0 > 0 ? fmtPct(tt.total / st0 * 100) + " od početnih " + fmtN(st0, 0) : "rezultat · realizirano " + jm(tt.realized) + " · otvoreno " + jm(tt.unreal)}</span><div style="margin-top:10px"><button class="btn sm" id="setstart">${st0 > 0 ? "Promijeni početni račun" : "Postavi početni račun"}</button></div></div>
+    <div class="card hero lift ${tt.total >= 0 ? "pos" : ""}"><div class="sub" style="display:flex;justify-content:space-between;align-items:center">Moj račun ${eyeBtn()}</div><div class="big">${balHidden ? MASK : st0 > 0 ? fmtN(st0 + tt.total) : jm(tt.total)} <span style="font-size:16px;font-weight:500">USDT</span></div><div class="sub" style="margin-top:2px;font-size:16px">≈ ${balHidden ? MASK : eurTxt(st0 > 0 ? st0 + tt.total : tt.total)}</div><span class="chip">${balHidden ? MASK : st0 > 0 ? fmtPct(tt.total / st0 * 100) + " od početnih " + fmtN(st0, 0) : "rezultat · realizirano " + jm(tt.realized) + " · otvoreno " + jm(tt.unreal)}</span><div style="margin-top:10px"><button class="btn sm" id="setstart">${st0 > 0 ? "Promijeni početni račun" : "Postavi početni račun"}</button></div></div>
     <div class="card stat lift"><div class="sub">Uspješnost</div><div class="v">${cc.length ? Math.round(wins.length / cc.length * 100) + "%" : "–"}</div><div class="sub">${cc.length} zatvorenih trejdova</div></div>
     <div class="card stat lift"><div class="sub">Prosjek po trejdu</div><div class="v ${cls(avgPct)}">${cc.length ? fmtPct(avgPct) : "–"}</div><div class="sub">nakon provizije</div></div>
     <div class="card stat lift"><div class="sub">Profit factor</div><div class="v">${cc.length ? (gl > 0 ? fmtN(gw / gl) : gw > 0 ? "∞" : "–") : "–"}</div><div class="sub">dobici / gubici</div></div></div>
   <div class="card mt"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div><h2>Moji otvoreni trejdovi · uživo</h2><div class="sub">Zarada se osvježava čim stigne cijena s Binancea.</div></div><a class="btn" href="#/dnevnik">Moj dnevnik</a></div>${openT}</div>
   <div class="grid g2 mt">
     <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div><h2>Kretanje mog računa</h2><div class="sub">USDT, nakon zatvorenih trejdova</div></div>
-      <div class="seg" id="eqseg">${[["7", "7D"], ["30", "30D"], ["all", "Sve"]].map(([k, t]) => `<button data-r="${k}" class="${eqRange === k ? "on" : ""}">${t}</button>`).join("")}</div></div><div id="eqchart">${cc.length ? equityCurve(eqRange, pts, st0 > 0 ? st0 : 0) : '<div class="empty">Još nema zatvorenih trejdova.</div>'}</div></div>
+      <div class="seg" id="eqseg">${[["7", "7D"], ["30", "30D"], ["all", "Sve"]].map(([k, t]) => `<button data-r="${k}" class="${eqRange === k ? "on" : ""}">${t}</button>`).join("")}</div></div><div id="eqchart" style="${balHidden ? "filter:blur(9px);pointer-events:none" : ""}">${cc.length ? equityCurve(eqRange, pts, st0 > 0 ? st0 : 0) : '<div class="empty">Još nema zatvorenih trejdova.</div>'}</div></div>
     <div class="card"><h2>Zatvoreno po ishodu</h2><div class="sub">Svi moji zatvoreni trejdovi</div><div style="margin-top:10px">${bar("Dobitni", wins.length, "var(--up)")}${bar("Gubitni", nl, "var(--down)")}</div></div></div>
   <div class="grid g2 mt">
     <div class="card"><h2>Moji zadnji zatvoreni trejdovi</h2><div style="margin-top:8px">${recT}</div></div>
@@ -673,6 +678,7 @@ function bind(arg) {
     $("#swclear").addEventListener("click", () => { cfg.wtoken = ""; lsSet("cfg", cfg); render(); toast("Token za dnevnik je obrisan."); });
     $("#sclear").addEventListener("click", () => { cfg.token = ""; lsSet("cfg", cfg); S.source = "x"; refreshData(); toast("Token je obrisan s ovog računala."); });
   }
+  document.querySelectorAll("[data-eye]").forEach(b => b.addEventListener("click", () => { balHidden = !balHidden; render(); }));
   if (currentView === "moj") { const b = $("#setstart"); if (b) b.addEventListener("click", () => { const v = prompt("Koliko je USDT na tvom Binance računu za ove trejdove (početno stanje)?", mojStart()); if (v === null) return; const n = parseFloat(String(v).replace(",", ".")); lsSet("mojStart", isFinite(n) && n > 0 ? n : 0); lsSet("journalUpd", Date.now()); jPushSoon(); render(); }); }
   if (currentView === "sdnevnik") { main.querySelectorAll("#sfilter button").forEach(b => b.addEventListener("click", () => { sdFilter.f = b.dataset.f; render(); })); const q = $("#sq"); if (q) q.addEventListener("input", () => { sdFilter.q = q.value; const pos = q.selectionStart; render(); const n = $("#sq"); n.focus(); n.setSelectionRange(pos, pos); }); }
   const dfb = $("#dfbar"); if (dfb) dfb.querySelectorAll("button").forEach(b => b.addEventListener("click", () => { dateF = b.dataset.df; lsSet("dateF", dateF); render(); }));
@@ -832,7 +838,7 @@ function vDnevnik(arg) {
     <td class="r"><span class="${cls(c.pct)}" ${op ? `data-live="${t.pair}" data-k="jpp" data-jid="${t.id}"` : ""}>${fmtPct(c.pct)}</span></td>
     <td class="r" style="white-space:nowrap">${op ? `<button class="btn sm" data-jx="${t.id}">Izlaz</button> ` : ""}<button class="btn sm" data-jedit="${t.id}">Uredi</button> <button class="x" data-jdel="${t.id}" aria-label="Obriši">×</button></td></tr>`; }).join("");
   return shell("Moj dnevnik", "Vaši stvarni ulazi i izlazi s Binancea: kada ste ušli, po kojoj cijeni, koliko USDT i kada ste izašli. Zarada uključuje proviziju.", dateBar() + `
-  <div class="card stat lift" style="margin-bottom:14px"><div class="sub">Moj račun (fiktivno, početak ${fmtN(mojStart(), 0)} USDT)</div><div class="v ${cls(jTotals().total)}">${fmtN(mojStart() + jTotals().total)} <span style="font-size:14px">USDT</span></div><div class="sub">početni račun + sve zatvoreno i otvoreno iz dnevnika (${jm(jTotals().total)} USDT)</div></div>
+  <div class="card stat lift" style="margin-bottom:14px"><div class="sub" style="display:flex;justify-content:space-between;align-items:center"><span>Moj račun (fiktivno${balHidden ? "" : ", početak " + fmtN(mojStart(), 0) + " USDT"})</span>${eyeBtn()}</div><div class="v ${balHidden ? "" : cls(jTotals().total)}">${balHidden ? MASK : fmtN(mojStart() + jTotals().total)} <span style="font-size:14px">USDT</span></div><div class="sub">≈ ${balHidden ? MASK : eurTxt(mojStart() + jTotals().total)}</div><div class="sub">početni račun + sve zatvoreno i otvoreno iz dnevnika${balHidden ? "" : " (" + jm(jTotals().total) + " USDT)"}</div></div>
   <div class="grid g4"><div class="card stat lift"><div class="sub">Realizirano</div><div class="v ${cls(tt.realized)}">${jm(tt.realized)} <span style="font-size:14px">USDT</span></div><div class="sub">${tt.cl} zatvorenih trejdova${tt.cl ? ", " + Math.round(tt.win / tt.cl * 100) + "% dobitnih" : ""}</div></div>
     <div class="card stat lift"><div class="sub">Otvoreno uživo</div><div class="v ${cls(tt.unreal)}">${jm(tt.unreal)} <span style="font-size:14px">USDT</span></div><div class="sub">neostvareno</div></div>
     <div class="card stat lift"><div class="sub">Ukupno</div><div class="v ${cls(tt.total)}">${jm(tt.total)} <span style="font-size:14px">USDT</span></div><div class="sub">realizirano + otvoreno</div></div>
