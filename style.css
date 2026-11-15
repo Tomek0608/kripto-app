@@ -178,9 +178,10 @@ select.txt{appearance:auto}
 .item.k-real,.item.k-real.on,.item.k-real:hover{border-color:var(--real);border-left-width:4px}
 .item.k-shadow,.item.k-shadow.on,.item.k-shadow:hover{border-color:var(--shadow);border-left-width:4px}
 .item.k-real.on{box-shadow:0 0 0 1px var(--real)}.item.k-shadow.on{box-shadow:0 0 0 1px var(--shadow)}
-.modal{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.55);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px}
-.modal .mbox{width:min(560px,100%);animation:none!important}
+.modal{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.55);backdrop-filter:blur(6px);display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.modal .mbox{width:min(560px,100%);animation:none!important;margin:auto 0}
 .modal .jgrid{grid-template-columns:1fr}
+.jgrid.pgrid,.modal .jgrid.pgrid{grid-template-columns:1fr 1fr}
 
 .sec{font-size:20px;font-weight:700;margin:4px 0 14px}.sec span{font-size:13px;font-weight:500;color:var(--muted);margin-left:10px}
 
