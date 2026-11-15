@@ -153,7 +153,7 @@ class PriceChart {
     this.timeAxis(g, plotW, i0, i1);
     /* signali: zone (iza svijeca) */
     const xr = (t) => this.x(this.idxOfTime(t));
-    const sigGeo = this.signals.map(s => { const x0 = Math.max(0, xr(s.start)), x1 = s.end ? Math.min(plotW, xr(s.end)) : plotW; return { s, x0, x1, vis: x1 > 0 && xr(s.start) < plotW }; });
+    const sigGeo = this.signals.map(s => { const x0 = Math.max(0, xr(s.start)), x1 = s.end ? Math.min(plotW, Math.max(xr(s.end), xr(s.start) + 130)) : plotW; return { s, x0, x1, vis: x1 > 0 && xr(s.start) < plotW }; });
     g.save(); g.beginPath(); g.rect(0, P.main.y, plotW, P.main.h); g.clip();
     sigGeo.forEach(({ s, x0, x1, vis }) => { if (!vis || x1 <= x0) return; const a = s.open ? 1 : .55;
       g.fillStyle = (this.dark ? `rgba(63,224,160,${.13 * a})` : `rgba(30,142,62,${.11 * a})`); g.fillRect(x0, yP(s.t3), x1 - x0, yP(s.entry) - yP(s.t3));
