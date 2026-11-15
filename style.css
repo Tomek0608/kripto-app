@@ -259,3 +259,4 @@ table.cmp .mine,table.cmp .mine b:not(.up):not(.down){color:var(--mine)}
 .zbtns button{display:flex;align-items:center;gap:3px;min-width:38px;height:34px;padding:0 10px;justify-content:center;border-radius:12px;border:1px solid var(--edge);background:var(--glass2);color:inherit;font-size:18px;font-weight:700;line-height:1;cursor:pointer;backdrop-filter:blur(10px);transition:transform .15s,border-color .15s}
 .zbtns button:hover{transform:translateY(-1px);border-color:rgba(var(--acc),.6)}
 .zbtns button small{font-size:11px;color:var(--muted);font-weight:600}
+@media (pointer:coarse){.zbtns{display:none}}
