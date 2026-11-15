@@ -2,7 +2,12 @@
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
-const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} if (k === "cfg") cfgMirror(v); };
+/* pricuvna kopija postavki (token) u IndexedDB + zahtjev za trajnu pohranu: ako preglednik obrise localStorage, postavke se same vrate */
+const idbOpen = () => new Promise((res, rej) => { try { const r = indexedDB.open("kripto-cfg", 1); r.onupgradeneeded = () => r.result.createObjectStore("kv"); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); } catch (e) { rej(e); } });
+function cfgMirror(v) { try { if (!v || !v.token) return; idbOpen().then(db => { db.transaction("kv", "readwrite").objectStore("kv").put(JSON.stringify(v), "cfg"); }).catch(() => {}); } catch (e) {} }
+async function cfgRestore() { try { if (cfg.token || cfg.demo) return false; const db = await idbOpen(); const v = await new Promise(res => { const q = db.transaction("kv").objectStore("kv").get("cfg"); q.onsuccess = () => res(q.result); q.onerror = () => res(null); }); if (!v) return false; const o = JSON.parse(v); if (!o.token) return false; cfg = Object.assign(cfg, o); cfg.demo = false; lsSet("cfg", cfg); return true; } catch (e) { return false; } }
+try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
 
 const S = { rows: [], source: "demo", updated: 0, err: "", prices: {}, open24: {}, tick: 0, ws: null, wsPairs: "" };
 let cfg = Object.assign({ token: "", repo: "Tomek0608/crypto-signals", branch: "main", demo: false, refresh: 60 }, lsGet("cfg", {}));
@@ -90,7 +95,7 @@ function topPills() {
   const el = $("#pills"); if (!el) return;
   const fresh = Date.now() - S.tick < 15000; let h = "";
   h += S.tick ? (fresh ? '<span class="pill live"><span class="dot"></span>Cijene uživo</span>' : '<span class="pill warn"><span class="dot"></span>Veza kasni…</span>') : '<span class="pill warn"><span class="dot"></span>Povezivanje…</span>';
-  h += S.source === "demo" ? '<span class="pill demo">Primjer podataka</span>' : `<span class="pill">GitHub · ${S.updated ? fmtHM(S.updated) : "–"}</span>`;
+  h += S.source === "demo" ? (!cfg.token && !cfg.demo ? '<a href="#/postavke" class="pill demo" style="color:#ff5a5f;border-color:#ff5a5f;font-weight:800">⚠ NEMA TOKENA – prikazani su izmišljeni podaci. Upiši token u Postavkama.</a>' : '<span class="pill demo">Primjer podataka</span>') : `<span class="pill">GitHub · ${S.updated ? fmtHM(S.updated) : "–"}</span>`;
   if (S.source === "github" && S.engine) { const m = Math.round((Date.now() - S.engine) / 60000), t = m < 90 ? "pill" : m < 180 ? "pill warn" : "pill err"; h += `<span class="${t}" title="Engine se pokreće svakog sata i nakon svakog alarma. Ako je ovdje crveno, provjerite GitHub Actions.">Engine · ${m < 60 ? "prije " + m + " min" : "prije " + Math.floor(m / 60) + " h " + (m % 60) + " min"}</span>`; }
   if (cfg.wtoken) h += S.jerr ? '<span class="pill err" title="' + esc(S.jerr) + '">Dnevnik: nije spremljen</span>' : (S.jsync ? '<span class="pill">Dnevnik spremljen · ' + fmtHM(S.jsync) + "</span>" : '<span class="pill">Dnevnik · provjera…</span>');
   if (S.err) h += `<span class="pill err" title="${esc(S.err)}">Greška podataka</span>`;
@@ -115,6 +120,7 @@ function importFromHash() {
 function transferLink() { const o = { repo: cfg.repo, branch: cfg.branch, token: cfg.token }; if (cfg.wtoken) o.wtoken = cfg.wtoken; return PUBLIC_URL + "#/prenos=" + btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
 function boot() {
   importFromHash();
+  cfgMirror(cfg); cfgRestore().then(ok => { if (ok) { S.source = "x"; refreshData(); toast("Postavke su vraćene iz pričuvne kopije."); } });
   document.documentElement.dataset.theme = lsGet("theme2", "reel");
   $("#root").innerHTML = `<canvas id="bg"></canvas><div class="veil"></div><div class="app"><aside class="rail"><div class="mark">T</div>
     ${NAV.filter(n => n[0] !== "postavke").map(([id, t, ic, g], i, a) => (i && a[i - 1][3] !== g ? '<div class="rsep"></div>' : "") + `<a class="ri g${g}" href="#/${id}" data-nav="${id}">${svg(ICON[ic])}<span class="tip">${t}</span></a>`).join("")}
