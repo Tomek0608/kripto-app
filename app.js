@@ -463,14 +463,22 @@ function vSignali(arg) {
   const jIds = new Set(J().map(t => t.sig));
   const chip = (on, attr, t) => `<button class="chip-btn ${on ? "on" : ""}" ${attr}>${t}</button>`;
   const sigBar = () => {
+    const act = [].concat(sigFilter.f !== "svi" ? [[sigFilter.f === "pravi" ? "Pravi" : "Sjene", 'data-f="svi"']] : [], sigFilter.sd !== "sve" ? [[sigFilter.sd === "long" ? "Long" : "Short", 'data-sd="sve"']] : [], sigFilter.tf !== "sve" ? [[sigFilter.tf, 'data-tf2="sve"']] : [], sigFilter.nj ? [["Nisu u dnevniku", 'data-nj="1"']] : [], sigFilter.d !== "sve" ? [[{ danas: "Danas", jucer: "Jučer", "24h": "24 h", "7d": "7 dana" }[sigFilter.d], 'data-d="sve"']] : []), nAct = act.length;
+    const ordName = { bodovi: "bodovi", t1: "najbliže T1", stop: "najbliže stopu", novi: "najnoviji", stari: "najstariji" }[sigFilter.o] || "bodovi";
     const op = all.filter(isOpen), opR = op.filter(isReal), lg = op.filter(s => !isShort(s)).length, shn = op.length - lg, today = op.filter(s => s.created >= dayStart(0)).length;
     const sumR = opR.reduce((a, s) => a + (isFinite(rNow(s)) ? rNow(s) : 0), 0), b7 = op.find(s => isFinite(s.btc7));
     return `<div class="sstrip"><div><i>Otvoreno</i><b>${op.length}</b><small>${opR.length} pravih</small></div><div><i>Long / Short</i><b>${lg} / ${shn}</b><small>otvoreni</small></div><div><i>Pravi sada</i><b class="${sumR >= 0 ? "up" : "down"}">${fmtR(sumR)}</b><small>otvoreno</small></div><div><i>Danas</i><b>${today}</b><small>novih</small></div></div>
     ${b7 ? `<div class="sbtc ${b7.btc7 <= -2 ? "down" : b7.btc7 >= 2 ? "up" : ""}"><b>BTC 7 dana ${fmtPct(b7.btc7)}</b><span>${b7.btc7 <= -2 ? "tržište pada · shortovi su u prednosti" : b7.btc7 >= 2 ? "tržište raste · longovi su u prednosti" : "tržište bez jasnog smjera"}</span></div>` : ""}
-    <div id="sfilter"><div class="sfrow">${chip(sigFilter.s === "otvoreni", 'data-s="otvoreni"', "Otvoreni")}${chip(sigFilter.s === "zatvoreni", 'data-s="zatvoreni"', "Zatvoreni")}${chip(sigFilter.s === "svi", 'data-s="svi"', "Svi")}</div>
-    <div class="sfrow">${[["svi", "Svi"], ["pravi", "Pravi"], ["sjene", "Sjene"]].map(([k, t]) => chip(sigFilter.f === k, `data-f="${k}"`, `${t} (${cnt[k]})`)).join("")}${[["long", "Long"], ["short", "Short"]].map(([k, t]) => chip(sigFilter.sd === k, `data-sd="${sigFilter.sd === k ? "sve" : k}"`, t)).join("")}${[["4h", "4h"], ["1h", "1h"]].map(([k, t]) => chip(sigFilter.tf === k, `data-tf2="${sigFilter.tf === k ? "sve" : k}"`, t)).join("")}${chip(sigFilter.nj, 'data-nj="1"', "Nisu u dnevniku")}</div>
-    <div class="sfrow"><span class="muted" style="font-size:12px">Stiglo:</span>${[["sve", "Sve"], ["danas", "Danas"], ["jucer", "Jučer"], ["24h", "24 h"], ["7d", "7 dana"]].map(([k, t]) => chip(sigFilter.d === k, `data-d="${k}"`, t)).join("")}</div>
-    <div class="sfrow"><span class="muted" style="font-size:12px">Poredak:</span>${[["bodovi", "Bodovi"], ["t1", "Najbliže T1"], ["stop", "Najbliže stopu"], ["novi", "Najnoviji"], ["stari", "Najstariji"]].map(([k, t]) => chip(sigFilter.o === k, `data-o="${k}"`, t)).join("")}</div></div>`;
+    <div id="sfilter"><div class="sseg">${[["otvoreni", "Otvoreni"], ["zatvoreni", "Zatvoreni"], ["svi", "Svi"]].map(([k, t]) => `<button class="${sigFilter.s === k ? "on" : ""}" data-s="${k}">${t}</button>`).join("")}</div>
+    <div class="sqrow"><input class="txt" id="sq" placeholder="Traži par…" value="${esc(sigFilter.q)}"><button class="fbtn" data-sh="1">⚙ Filteri${nAct ? `<span class="fbd">${nAct}</span>` : ""}</button></div>
+    ${nAct ? `<div class="sact">${act.map(([t, at]) => `<button class="chip-btn on" ${at}>${t} ✕</button>`).join("")}</div>` : ""}
+    <div class="sord muted">${rows.length} ${rows.length === 1 ? "signal" : "signala"} · poredak: ${ordName}</div>
+    ${sigFilter.sh ? `<div class="sheetbg" data-sh="0"></div><div class="sheet2"><div class="sh-h"><b>Filteri</b><button class="sh-clr" data-clr="1">Očisti sve</button></div>
+      <h4>Vrsta</h4><div class="sfrow">${[["svi", "Svi"], ["pravi", "Pravi"], ["sjene", "Sjene"]].map(([k, t]) => chip(sigFilter.f === k, `data-f="${k}"`, `${t} (${cnt[k]})`)).join("")}</div>
+      <h4>Smjer i okvir</h4><div class="sfrow">${[["long", "Long"], ["short", "Short"]].map(([k, t]) => chip(sigFilter.sd === k, `data-sd="${sigFilter.sd === k ? "sve" : k}"`, t)).join("")}${[["4h", "4h"], ["1h", "1h"]].map(([k, t]) => chip(sigFilter.tf === k, `data-tf2="${sigFilter.tf === k ? "sve" : k}"`, t)).join("")}${chip(sigFilter.nj, 'data-nj="1"', "Nisu u dnevniku")}</div>
+      <h4>Stiglo</h4><div class="sfrow">${[["sve", "Sve"], ["danas", "Danas"], ["jucer", "Jučer"], ["24h", "24 h"], ["7d", "7 dana"]].map(([k, t]) => chip(sigFilter.d === k, `data-d="${k}"`, t)).join("")}</div>
+      <h4>Poredak</h4><div class="sfrow">${[["bodovi", "Bodovi"], ["t1", "Najbliže T1"], ["stop", "Najbliže stopu"], ["novi", "Najnoviji"], ["stari", "Najstariji"]].map(([k, t]) => chip(sigFilter.o === k, `data-o="${k}"`, t)).join("")}</div>
+      <button class="sh-go" data-sh="0">Prikaži ${fl.length} ${fl.length === 1 ? "signal" : "signala"}</button></div>` : ""}</div>`;
   };
   const cnt = { svi: rows.length, pravi: rows.filter(isReal).length, sjene: rows.filter(isShadow).length };
   const fl = rows.filter(s => (sigFilter.f === "svi" || (sigFilter.f === "pravi" && isReal(s)) || (sigFilter.f === "sjene" && isShadow(s))) && (!isNarrow() || ((sigFilter.sd === "sve" || (sigFilter.sd === "short") === isShort(s)) && (sigFilter.tf === "sve" || s.tf === sigFilter.tf) && (!sigFilter.nj || !jIds.has(s.id)))) && (!sigFilter.q || s.pair.includes(sigFilter.q.toUpperCase())));
@@ -499,7 +507,7 @@ function vSignali(arg) {
   if (isNarrow()) {
     if (!arg || !all.find(s => s.id === arg)) return shell("Signali i analiza", "Dodirnite signal da vidite graf, brojeve i razloge.", `<div class="legend"><span class="tag real">Pravi signal</span><span class="tag shadow">Sjena (probni)</span></div>
     ${sigBar()}
-    <input class="txt" id="sq" placeholder="Traži par, npr. DODO" value="${esc(sigFilter.q)}" style="margin-bottom:10px"><div class="list">${list}</div>`);
+    <div class="list">${list}</div>`);
     const d = all.find(s => s.id === arg);
     const chartBlock = `<div class="card mt sgc"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px"><h2 style="margin:0">Graf</h2><div class="seg" id="sgtf">${Object.keys(INTERVAL).map(k => `<button data-tf="${k}" class="${chartState.tf === k ? "on" : ""}">${k}</button>`).join("")}</div></div><div class="chartwrap sgwrap" id="sgchart"></div></div>`;
     return shell(dn(d.pair), "", `<div style="margin-bottom:12px"><a class="btn" href="#/signali" id="sgback">← Svi signali</a></div>` + (isOpen(d) ? "" : '<div class="note" style="margin:0 0 10px">Ovaj signal je zatvoren (samo pregled).</div>') + sigDetail(d, false, chartBlock));
@@ -738,7 +746,8 @@ function bind(arg) {
   main.querySelectorAll("[data-go]").forEach(e => e.addEventListener("click", () => { if (e.dataset.sig) { chartState.sig = e.dataset.sig; lsSet("chartState", chartState); } location.hash = e.dataset.go; }));
   if (currentView === "pregled" || currentView === "moj") main.querySelectorAll("#eqseg button").forEach(b => b.addEventListener("click", () => { eqRange = b.dataset.r; lsSet("eqRange", eqRange); render(); }));
   if (currentView === "signali") {
-    main.querySelectorAll("#sfilter button").forEach(b => b.addEventListener("click", () => { if (b.dataset.f) sigFilter.f = b.dataset.f; if (b.dataset.d) sigFilter.d = b.dataset.d; if (b.dataset.o) sigFilter.o = b.dataset.o; if (b.dataset.s) sigFilter.s = b.dataset.s; if (b.dataset.sd) sigFilter.sd = b.dataset.sd; if (b.dataset.tf2) sigFilter.tf = b.dataset.tf2; if (b.dataset.nj) sigFilter.nj = !sigFilter.nj; render(); }));
+    main.querySelectorAll("#sfilter button").forEach(b => b.addEventListener("click", () => { if (b.dataset.f) sigFilter.f = b.dataset.f; if (b.dataset.d) sigFilter.d = b.dataset.d; if (b.dataset.o) sigFilter.o = b.dataset.o; if (b.dataset.s) sigFilter.s = b.dataset.s; if (b.dataset.sd) sigFilter.sd = b.dataset.sd; if (b.dataset.tf2) sigFilter.tf = b.dataset.tf2; if (b.dataset.nj) sigFilter.nj = !sigFilter.nj; if (b.dataset.sh) sigFilter.sh = b.dataset.sh === "1"; if (b.dataset.clr) Object.assign(sigFilter, { f: "svi", d: "sve", sd: "sve", tf: "sve", nj: false }); render(); }));
+    main.querySelectorAll(".sheetbg").forEach(b => b.addEventListener("click", () => { sigFilter.sh = false; render(); }));
     main.querySelectorAll(".srow").forEach(r => r.addEventListener("click", e => { if (e.target.closest("a,button")) return; sigFilter.x = sigFilter.x === r.dataset.x ? "" : r.dataset.x; render(); }));
     const q = $("#sq"); if (q) q.addEventListener("input", () => { sigFilter.q = q.value; const pos = q.selectionStart; render(); const n = $("#sq"); n.focus(); n.setSelectionRange(pos, pos); });
     if ($("#sgchart")) bindSigChart(arg);
