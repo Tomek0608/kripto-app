@@ -92,6 +92,8 @@ class PriceChart {
   get inkFg() { return this.dark ? "#1B1B1E" : "#fff"; }
   get UP() { return this.dark ? "#6FD58F" : "#1E8E3E"; }
   get DN() { return this.dark ? "#FF7B70" : "#D93B30"; }
+  get CUP() { return this.dark ? "#5aa58a" : "#4c9a7e"; }
+  get CDN() { return this.dark ? "#c0646a" : "#c0646a"; }
   setOpts(o) { Object.assign(this.o, o); this.dirty = true; }
   setData(c, tf) { this.c = c; this.tf = tf; this.calc(); this.reset(); }
   calc() { const cl = this.c.map(k => k.c);
@@ -142,9 +144,9 @@ class PriceChart {
     if (this.az) { this.az.style.top = P.main.y + "px"; this.az.style.height = P.main.h + "px"; }
     const yP = (p) => P.main.y + (P.main.max - p) / (P.main.max - P.main.min) * P.main.h;
     /* mreza + os cijene */
-    g.font = "11px Inter,system-ui"; g.textBaseline = "middle";
+    g.font = "600 11.5px Inter,system-ui"; g.textBaseline = "middle";
     const step = niceStep((P.main.max - P.main.min) / Math.max(3, P.main.h / 70));
-    g.strokeStyle = this.k(.06); g.fillStyle = this.f(.6); g.lineWidth = 1;
+    g.strokeStyle = this.dark ? "rgba(255,255,255,.07)" : "rgba(0,0,0,.07)"; g.fillStyle = this.f(.7); g.lineWidth = 1;
     for (let p = Math.ceil(P.main.min / step) * step; p < P.main.max; p += step) { const y = Math.round(yP(p)) + .5;
       g.beginPath(); g.moveTo(0, y); g.lineTo(plotW, y); g.stroke(); g.textAlign = "left"; g.fillText(fmtP(p), plotW + 6, y); }
     /* vremenska os */
@@ -154,22 +156,22 @@ class PriceChart {
     const sigGeo = this.signals.map(s => { const x0 = Math.max(0, xr(s.start)), x1 = s.end ? Math.min(plotW, xr(s.end)) : plotW; return { s, x0, x1, vis: x1 > 0 && xr(s.start) < plotW }; });
     g.save(); g.beginPath(); g.rect(0, P.main.y, plotW, P.main.h); g.clip();
     sigGeo.forEach(({ s, x0, x1, vis }) => { if (!vis || x1 <= x0) return; const a = s.open ? 1 : .55;
-      g.fillStyle = (this.dark ? `rgba(111,213,143,${.10 * a})` : `rgba(30,142,62,${.09 * a})`); g.fillRect(x0, yP(s.t3), x1 - x0, yP(s.entry) - yP(s.t3));
-      g.fillStyle = (this.dark ? `rgba(255,123,112,${.12 * a})` : `rgba(217,59,48,${.11 * a})`); g.fillRect(x0, yP(s.entry), x1 - x0, yP(s.stop) - yP(s.entry)); });
+      g.fillStyle = (this.dark ? `rgba(63,224,160,${.13 * a})` : `rgba(30,142,62,${.11 * a})`); g.fillRect(x0, yP(s.t3), x1 - x0, yP(s.entry) - yP(s.t3));
+      g.fillStyle = (this.dark ? `rgba(255,90,95,${.17 * a})` : `rgba(217,59,48,${.13 * a})`); g.fillRect(x0, yP(s.entry), x1 - x0, yP(s.stop) - yP(s.entry)); });
     /* EMA */
-    if (this.o.ema) [[this.e20, "#E8A317"], [this.e50, "#3B6FD4"], [this.e200, "#7A4FD0"]].forEach(([arr, col]) => {
-      g.strokeStyle = col; g.lineWidth = 1.2; g.beginPath(); let st = false;
+    if (this.o.ema) [[this.e20, "#b98a2f"], [this.e50, "#4c78b8"], [this.e200, "#7a5fb0"]].forEach(([arr, col]) => {
+      g.strokeStyle = col; g.lineWidth = 1.4; g.beginPath(); let st = false;
       for (let i = i0; i <= i1; i++) { if (isNaN(arr[i])) continue; const x = this.x(i), y = yP(arr[i]); if (!st) { g.moveTo(x, y); st = true; } else g.lineTo(x, y); } g.stroke(); });
     /* svijece */
-    for (let i = i0; i <= i1; i++) { const k = this.c[i], x = this.x(i), up = k.c >= k.o; const col = up ? this.UP : this.DN;
+    for (let i = i0; i <= i1; i++) { const k = this.c[i], x = this.x(i), up = k.c >= k.o; const col = up ? this.CUP : this.CDN;
       g.strokeStyle = col; g.fillStyle = col; g.lineWidth = 1; g.beginPath(); g.moveTo(Math.round(x) + .5, yP(k.h)); g.lineTo(Math.round(x) + .5, yP(k.l)); g.stroke();
-      const w = Math.max(1, bw * .72), y1 = yP(Math.max(k.o, k.c)), y2 = yP(Math.min(k.o, k.c)); g.fillRect(x - w / 2, y1, w, Math.max(1, y2 - y1)); }
+      const w = Math.max(1, bw * .62), y1 = yP(Math.max(k.o, k.c)), y2 = yP(Math.min(k.o, k.c)); g.fillRect(x - w / 2, y1, w, Math.max(1, y2 - y1)); }
     /* linije signala */
     sigGeo.forEach(({ s, x0, x1, vis }) => { if (!vis) return; const a = s.open ? 1 : .5;
-      const L = [["t3", s.t3, this.UP, "T3 · 4R"], ["t2", s.t2, this.UP, "T2 · 3R"], ["t1", s.t1, this.UP, "T1 · 2R"], ["en", s.entry, s.kind === "shadow" ? "#F28A3A" : this.dark ? "#6FD58F" : "#1E8E3E", s.kind === "shadow" ? "Ulaz · sjena" : "Ulaz · pravi"], ["st", s.stop, this.DN, "Stop"]];
-      L.forEach(([k, p, col, lab]) => { const y = Math.round(yP(p)) + .5; g.globalAlpha = a; g.strokeStyle = col; g.lineWidth = 1.2; g.setLineDash(k === "en" ? [] : [5, 4]);
+      const TG = this.dark ? "#3fe0a0" : "#1E8E3E", SG = this.dark ? "#ff5a5f" : "#D93B30"; const L = [["t3", s.t3, TG, "T3 · +4R"], ["t2", s.t2, TG, "T2 · +3R"], ["t1", s.t1, TG, "T1 · +2R"], ["en", s.entry, s.kind === "shadow" ? "#F28A3A" : this.dark ? "#6FD58F" : "#1E8E3E", s.kind === "shadow" ? "Ulaz · sjena" : "Ulaz · pravi"], ["st", s.stop, SG, "Stop"]];
+      L.forEach(([k, p, col, lab]) => { const y = Math.round(yP(p)) + .5; g.globalAlpha = a; g.strokeStyle = col; g.lineWidth = k === "en" || k === "st" ? 1.8 : 1.5; g.setLineDash(k === "en" || k === "st" ? [] : [2, 3]);
         g.beginPath(); g.moveTo(x0, y); g.lineTo(x1, y); g.stroke(); g.setLineDash([]);
-        if (x1 - x0 > 40) { let txt = lab; if (k === "st") txt = "Stop " + fmtPct((s.stop / s.entry - 1) * 100, 2); pill(g, x0 + 4, y - 9, txt, col, true); } g.globalAlpha = 1; });
+        if (x1 - x0 > 40) { let txt = lab; if (k === "st") txt = "Stop " + fmtPct((s.stop / s.entry - 1) * 100, 2); bigLabel(g, x0 + (k === "en" ? 14 : 6), y - 6, txt, col, this.dark); } g.globalAlpha = 1; });
       /* oznaka ulaza */
       const ex = xr(s.start); if (ex >= 0 && ex <= plotW) { g.fillStyle = s.kind === "shadow" ? "#F28A3A" : this.dark ? "#6FD58F" : "#1E8E3E"; g.globalAlpha = a; const ey = yP(s.entry); g.beginPath(); if (s.short) { g.moveTo(ex, ey - 4); g.lineTo(ex - 5, ey - 12); g.lineTo(ex + 5, ey - 12); } else { g.moveTo(ex, ey + 4); g.lineTo(ex - 5, ey + 12); g.lineTo(ex + 5, ey + 12); } g.fill(); g.globalAlpha = 1; }
       /* izlaz */
@@ -185,8 +187,16 @@ class PriceChart {
     const tags = []; openSigs.forEach(s => { tags.push([s.t3, this.UP, "#fff"], [s.t2, this.UP, "#fff"], [s.t1, this.UP, "#fff"], [s.entry, this.ink, this.inkFg], [s.stop, this.DN, "#fff"]); });
     this.lines.forEach(l => tags.push([l.price, "#3B6FD4", "#fff"]));
     if (!isNaN(this.live)) { const lk = this.c[this.c.length - 1]; tags.push([this.live, lk && lk.c >= lk.o ? this.UP : this.DN, "#fff", true]); }
+    const TGc = this.dark ? "#3fe0a0" : "#1E8E3E", SGc = this.dark ? "#ff5a5f" : "#D93B30", tf = this.dark ? "#0b0d12" : "#fff";
+    openSigs.forEach(() => {}); tags.forEach(t => { if (t[1] === this.UP) { t[1] = TGc; t[2] = tf; } else if (t[1] === this.DN && !t[3]) { t[1] = SGc; t[2] = this.dark ? "#0b0d12" : "#fff"; } });
     tags.forEach(([p, bg, fg, live]) => { const y = yP(p); if (y < P.main.y - 4 || y > P.main.y + P.main.h + 4) return; if (live) { g.strokeStyle = bg; g.setLineDash([2, 3]); g.lineWidth = 1; g.beginPath(); g.moveTo(0, Math.round(y) + .5); g.lineTo(plotW, Math.round(y) + .5); g.stroke(); g.setLineDash([]); }
-      g.fillStyle = bg; rr(g, plotW + 2, y - 8, this.axisW - 4, 16, 4); g.fill(); g.fillStyle = fg; g.font = "600 10.5px Inter,system-ui"; g.textAlign = "center"; g.fillText(fmtP(p), plotW + this.axisW / 2, y + .5); });
+      g.fillStyle = bg; rr(g, plotW + 2, y - 10, this.axisW - 4, 20, 5); g.fill(); g.fillStyle = fg; g.font = "800 11.5px Inter,system-ui"; g.textAlign = "center"; g.fillText(fmtP(p), plotW + this.axisW / 2, y + .5); });
+    /* put do T1 (prvi otvoreni signal na grafu) */
+    const ps = openSigs[0]; if (ps && !isNaN(this.live) && ps.t1 !== ps.entry) { const pr = (this.live - ps.entry) / (ps.t1 - ps.entry), pc = Math.max(0, Math.min(1, pr)), bx = plotW - 192, by = P.main.y + 8;
+      g.fillStyle = this.dark ? "rgba(11,13,18,.88)" : "rgba(255,255,255,.92)"; rr(g, bx, by, 184, 24, 7); g.fill();
+      g.fillStyle = this.f(.75); g.font = "700 11px Inter,system-ui"; g.textAlign = "left"; g.textBaseline = "middle"; g.fillText("Put do T1", bx + 8, by + 12);
+      g.fillStyle = this.dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)"; rr(g, bx + 72, by + 8, 56, 8, 4); g.fill(); g.fillStyle = pr >= 0 ? (this.dark ? "#3fe0a0" : "#1E8E3E") : (this.dark ? "#ff5a5f" : "#D93B30"); if (pc > 0) { rr(g, bx + 72, by + 8, Math.max(6, 56 * pc), 8, 4); g.fill(); }
+      g.font = "800 12px Inter,system-ui"; g.textAlign = "right"; g.fillText(Math.round(pr * 100) + "%", bx + 176, by + 12); }
     /* podpanele */
     this.panes(g, plotW, i0, i1, P);
     this.drawCross();
@@ -212,7 +222,7 @@ class PriceChart {
       for (let i = i0; i <= i1; i++) { if (isNaN(arr[i])) continue; const x = this.x(i), y = p.y + (p.max - arr[i]) / (p.max - p.min) * p.h; if (!st) { g.moveTo(x, y); st = true; } else g.lineTo(x, y); } g.stroke(); };
     const axis = (p, vals) => { g.fillStyle = this.f(.5); g.font = "10px Inter,system-ui"; g.textAlign = "left"; vals.forEach(v => { const y = p.y + (p.max - v) / (p.max - p.min) * p.h; g.fillText(v >= 1000 ? (v / 1000).toFixed(1) + "k" : String(+v.toPrecision(3)), plotW + 6, y); }); };
     if (P.vol) { const p = P.vol; sep(p); let mv = 0; for (let i = i0; i <= i1; i++) mv = Math.max(mv, this.c[i].v); p.min = 0; p.max = mv * 1.1 || 1;
-      for (let i = i0; i <= i1; i++) { const k = this.c[i], h = k.v / p.max * p.h, x = this.x(i), w = Math.max(1, this.barW * .72); g.fillStyle = k.c >= k.o ? (this.dark ? "rgba(111,213,143,.5)" : "rgba(30,142,62,.5)") : (this.dark ? "rgba(255,123,112,.5)" : "rgba(217,59,48,.5)"); g.fillRect(x - w / 2, p.y + p.h - h, w, h); }
+      for (let i = i0; i <= i1; i++) { const k = this.c[i], h = k.v / p.max * p.h, x = this.x(i), w = Math.max(1, this.barW * .72); g.fillStyle = k.c >= k.o ? (this.dark ? "rgba(90,165,138,.42)" : "rgba(76,154,126,.5)") : (this.dark ? "rgba(192,100,106,.42)" : "rgba(192,100,106,.5)"); g.fillRect(x - w / 2, p.y + p.h - h, w, h); }
       lab(p, "Volumen"); }
     if (P.rsi) { const p = P.rsi; sep(p); p.min = 0; p.max = 100; g.strokeStyle = this.k(.14); g.setLineDash([3, 3]);
       [30, 70].forEach(v => { const y = Math.round(p.y + (100 - v) / 100 * p.h) + .5; g.beginPath(); g.moveTo(0, y); g.lineTo(plotW, y); g.stroke(); }); g.setLineDash([]);
@@ -228,4 +238,5 @@ function rr(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w
 let PILL_DARK = false;
 function pill(g, x, y, text, col, light) { g.font = "600 10px Inter,system-ui"; const w = g.measureText(text).width + 10;
   g.fillStyle = light ? (PILL_DARK ? "rgba(30,26,28,.82)" : "rgba(255,255,255,.88)") : col; rr(g, x, y, w, 15, 4); g.fill(); g.fillStyle = light ? col : "#fff"; g.textAlign = "left"; g.textBaseline = "middle"; g.fillText(text, x + 5, y + 8); }
+function bigLabel(g, x, y, text, col, dark) { g.font = "800 12.5px Inter,system-ui"; g.textAlign = "left"; g.textBaseline = "alphabetic"; g.lineJoin = "round"; g.lineWidth = 4; g.strokeStyle = dark ? "rgba(11,13,18,.9)" : "rgba(255,255,255,.95)"; g.strokeText(text, x, y); g.fillStyle = col; g.fillText(text, x, y); g.textBaseline = "middle"; }
 function niceStep(raw) { const e = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / e; return (f < 1.5 ? 1 : f < 3.5 ? 2 : f < 7.5 ? 5 : 10) * e; }
