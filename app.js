@@ -256,10 +256,10 @@ function mojPregled() {
     <div class="card stat lift"><div class="sub">Uspješnost</div><div class="v">${cc.length ? Math.round(wins.length / cc.length * 100) + "%" : "–"}</div><div class="sub">${cc.length} zatvorenih trejdova</div></div>
     <div class="card stat lift"><div class="sub">Prosjek po trejdu</div><div class="v ${cls(avgPct)}">${cc.length ? fmtPct(avgPct) : "–"}</div><div class="sub">nakon provizije</div></div>
     <div class="card stat lift"><div class="sub">Profit factor</div><div class="v">${cc.length ? (gl > 0 ? fmtN(gw / gl) : gw > 0 ? "∞" : "–") : "–"}</div><div class="sub">dobici / gubici</div></div></div>
-  <div class="card mt"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div><h2>Moji otvoreni trejdovi · uživo</h2><div class="sub">Zarada se osvježava čim stigne cijena s Binancea.</div></div><a class="btn" href="#/dnevnik">Moj dnevnik</a></div>${openT}</div>
+  <div class="card mt"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div><h2>Moji otvoreni trejdovi · uživo</h2></div><a class="btn" href="#/dnevnik">Moj dnevnik</a></div>${openT}</div>
   <div class="grid g2 mt">
-    <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div><h2>Kretanje mog računa</h2><div class="sub">USDT, nakon zatvorenih trejdova</div></div>
-      <div class="seg" id="eqseg">${[["7", "7D"], ["30", "30D"], ["all", "Sve"]].map(([k, t]) => `<button data-r="${k}" class="${eqRange === k ? "on" : ""}">${t}</button>`).join("")}</div></div><div id="eqchart" style="${balHidden ? "filter:blur(9px);pointer-events:none" : ""}">${cc.length ? equityCurve(eqRange, pts, st0 > 0 ? st0 : 0) : '<div class="empty">Još nema zatvorenih trejdova.</div>'}</div></div>
+    <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div><h2>Statistika računa</h2><div class="sub">USDT, nakon zatvorenih trejdova</div></div>
+      <div class="seg" id="eqseg">${[["7", "7D"], ["30", "30D"], ["all", "Sve"]].map(([k, t]) => `<button data-r="${k}" class="${eqRange === k ? "on" : ""}">${t}</button>`).join("")}</div></div><div id="eqchart">${cc.length ? equityCurve(eqRange, pts, st0 > 0 ? st0 : 0) : '<div class="empty">Još nema zatvorenih trejdova.</div>'}</div></div>
     <div class="card"><h2>Zatvoreno po ishodu</h2><div class="sub">Svi moji zatvoreni trejdovi</div><div style="margin-top:10px">${bar("Dobitni", wins.length, "var(--up)")}${bar("Gubitni", nl, "var(--down)")}</div></div></div>
   <div class="grid g2 mt">
     <div class="card"><h2>Moji zadnji zatvoreni trejdovi</h2><div style="margin-top:8px">${recT}</div></div>
@@ -774,7 +774,7 @@ function planHtml(pfx, plan, pre) {
     return `<div><label class="f">${k} cijena${dd > 0 ? " ✓ izvršeno" : ""}</label><input class="txt" id="${pfx}_p${i + 1}" inputmode="decimal" value="${val ? fmtRaw(val) : ""}" ${dd ? "disabled" : ""}></div><div><label class="f">${k} udio početne pozicije (%)</label><input class="txt" id="${pfx}_q${i + 1}" inputmode="decimal" value="${pc}" ${dd ? "disabled" : ""}></div>`; };
   const st = by("Stop");
   return `<h2 style="margin-top:14px;font-size:15px">Plan izlaza (automatski)</h2><div class="sub">Kad cijena dotakne razinu, aplikacija sama upiše izlaz s tim udjelom početne pozicije. Stop zatvara sve preostalo. Prazna cijena = bez te razine. Radi dok je aplikacija otvorena, a pri sljedećem otvaranju nadoknadi što je cijena dotaknula u međuvremenu.</div>
-    <div class="jgrid">${PLAN_KEYS.map(cell).join("")}<div><label class="f">Stop cijena${st && st.done > 0 ? " ✓ izvršeno" : ""}</label><input class="txt" id="${pfx}_ps" inputmode="decimal" value="${st ? fmtRaw(st.p) : (pre && pre.stop ? fmtRaw(pre.stop) : "")}" ${st && st.done ? "disabled" : ""}></div></div>`;
+    <div class="jgrid pgrid">${PLAN_KEYS.map(cell).join("")}<div><label class="f">Stop cijena${st && st.done > 0 ? " ✓ izvršeno" : ""}</label><input class="txt" id="${pfx}_ps" inputmode="decimal" value="${st ? fmtRaw(st.p) : (pre && pre.stop ? fmtRaw(pre.stop) : "")}" ${st && st.done ? "disabled" : ""}></div></div>`;
 }
 function readPlan(pfx, old) {
   const num = id => parseFloat(String($("#" + id).value).replace(",", ".")), out = [];
