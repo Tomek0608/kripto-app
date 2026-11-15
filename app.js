@@ -746,10 +746,11 @@ function bind(arg) {
   const main = $("#main");
   main.querySelectorAll("[data-go]").forEach(e => e.addEventListener("click", () => { if (e.dataset.sig) { chartState.sig = e.dataset.sig; lsSet("chartState", chartState); } location.hash = e.dataset.go; }));
   if (currentView === "pregled" || currentView === "moj") main.querySelectorAll("#eqseg button").forEach(b => b.addEventListener("click", () => { eqRange = b.dataset.r; lsSet("eqRange", eqRange); render(); }));
-  if (currentView !== "signali") { const sr = $("#sheetroot"); if (sr) sr.remove(); }
+  if (currentView !== "signali") { const sr = $("#sheetroot"); if (sr) sr.remove(); document.body.classList.remove("shopen"); }
   if (currentView === "signali") {
     const fclick = b => b.addEventListener("click", () => { if (b.dataset.f) sigFilter.f = b.dataset.f; if (b.dataset.d) sigFilter.d = b.dataset.d; if (b.dataset.o) sigFilter.o = b.dataset.o; if (b.dataset.s) sigFilter.s = b.dataset.s; if (b.dataset.sd) sigFilter.sd = b.dataset.sd; if (b.dataset.tf2) sigFilter.tf = b.dataset.tf2; if (b.dataset.nj) sigFilter.nj = !sigFilter.nj; if (b.dataset.sh) sigFilter.sh = b.dataset.sh === "1"; if (b.dataset.clr) Object.assign(sigFilter, { f: "svi", d: "sve", sd: "sve", tf: "sve", nj: false }); render(); });
     main.querySelectorAll("#sfilter button").forEach(fclick);
+    document.body.classList.toggle("shopen", !!window.__sheetHtml && isNarrow());
     { const root0 = $("#sheetroot"), hh = window.__sheetHtml || ""; if (!hh || !isNarrow()) { if (root0) root0.remove(); } else if (!root0 || root0.dataset.h !== hh) { const old = root0 && root0.querySelector(".sheet2"), sc0 = old ? old.scrollTop : 0, root = root0 || document.body.appendChild(Object.assign(document.createElement("div"), { id: "sheetroot" })); root.dataset.h = hh; root.innerHTML = hh; const nb = root.querySelector(".sheet2"); if (nb) nb.scrollTop = sc0; root.querySelectorAll("button").forEach(fclick); root.querySelectorAll(".sheetbg").forEach(b => b.addEventListener("click", () => { sigFilter.sh = false; render(); })); } }
     main.querySelectorAll(".srow").forEach(r => r.addEventListener("click", e => { if (e.target.closest("a,button")) return; sigFilter.x = sigFilter.x === r.dataset.x ? "" : r.dataset.x; render(); }));
     const q = $("#sq"); if (q) q.addEventListener("input", () => { sigFilter.q = q.value; const pos = q.selectionStart; render(); const n = $("#sq"); n.focus(); n.setSelectionRange(pos, pos); });
