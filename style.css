@@ -217,7 +217,7 @@ table.cmp .mine,table.cmp .mine b:not(.up):not(.down){color:var(--mine)}
   .card table{min-width:520px}
   .hero .big{font-size:32px}
   .chartwrap{height:420px;min-height:340px}
-  .chartwrap canvas{touch-action:pan-y}
+  .chartwrap canvas{touch-action:none}
   .chartbar{gap:8px}.chartbar .txt.sm{flex:1 1 100%}
   .list{max-height:none}
   .kv{gap:10px}
