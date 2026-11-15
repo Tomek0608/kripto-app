@@ -191,12 +191,17 @@ class PriceChart {
     openSigs.forEach(() => {}); tags.forEach(t => { if (t[1] === this.UP) { t[1] = TGc; t[2] = tf; } else if (t[1] === this.DN && !t[3]) { t[1] = SGc; t[2] = this.dark ? "#0b0d12" : "#fff"; } });
     tags.forEach(([p, bg, fg, live]) => { const y = yP(p); if (y < P.main.y - 4 || y > P.main.y + P.main.h + 4) return; if (live) { g.strokeStyle = bg; g.setLineDash([2, 3]); g.lineWidth = 1; g.beginPath(); g.moveTo(0, Math.round(y) + .5); g.lineTo(plotW, Math.round(y) + .5); g.stroke(); g.setLineDash([]); }
       g.fillStyle = bg; rr(g, plotW + 2, y - 10, this.axisW - 4, 20, 5); g.fill(); g.fillStyle = fg; g.font = "800 11.5px Inter,system-ui"; g.textAlign = "center"; g.fillText(fmtP(p), plotW + this.axisW / 2, y + .5); });
-    /* put do T1 (prvi otvoreni signal na grafu) */
-    const ps = openSigs[0]; if (ps && !isNaN(this.live) && ps.t1 !== ps.entry) { const pr = (this.live - ps.entry) / (ps.t1 - ps.entry), pc = Math.max(0, Math.min(1, pr)), bx = plotW - 192, by = P.main.y + 8;
-      g.fillStyle = this.dark ? "rgba(11,13,18,.88)" : "rgba(255,255,255,.92)"; rr(g, bx, by, 184, 24, 7); g.fill();
-      g.fillStyle = this.f(.75); g.font = "700 11px Inter,system-ui"; g.textAlign = "left"; g.textBaseline = "middle"; g.fillText("Put do T1", bx + 8, by + 12);
-      g.fillStyle = this.dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)"; rr(g, bx + 72, by + 8, 56, 8, 4); g.fill(); g.fillStyle = pr >= 0 ? (this.dark ? "#3fe0a0" : "#1E8E3E") : (this.dark ? "#ff5a5f" : "#D93B30"); if (pc > 0) { rr(g, bx + 72, by + 8, Math.max(6, 56 * pc), 8, 4); g.fill(); }
-      g.font = "800 12px Inter,system-ui"; g.textAlign = "right"; g.fillText(Math.round(pr * 100) + "%", bx + 176, by + 12); }
+    /* napredak prema ciljevima (prvi otvoreni signal na grafu): racuna se iz najdaljeg dosega cijene od ulaza, ne samo iz trenutne cijene */
+    const ps = openSigs[0]; if (ps && !isNaN(this.live) && ps.t1 !== ps.entry) { const sh = !!ps.short, tg = [ps.t1, ps.t2, ps.t3];
+      let ext = this.live; for (let q = 0; q < this.c.length; q++) { const k = this.c[q]; if (k.t >= ps.start) ext = sh ? Math.min(ext, k.l) : Math.max(ext, k.h); }
+      const reached = v => sh ? ext <= v : ext >= v; let n = tg.filter(reached).length; const hn = ((ps.hit || "").match(/T\d/g) || []).length; if (hn > n) n = hn;
+      const nx = n < 3 ? tg[n] : tg[2], pr = n >= 3 ? 1 : (sh ? ps.entry - ext : ext - ps.entry) / Math.abs(nx - ps.entry), pc = Math.max(0, Math.min(1, pr));
+      const lab = n === 0 ? "Put do T1" : "T" + n + " dosegnut ✓", pct = n >= 3 ? "T3 ✓" : "T" + (n + 1) + " " + Math.round(pc * 100) + "%", okc = this.dark ? "#3fe0a0" : "#1E8E3E", bad = this.dark ? "#ff5a5f" : "#D93B30";
+      const bw2 = 232, bx = plotW - bw2 - 8, by = P.main.y + 8;
+      g.fillStyle = this.dark ? "rgba(11,13,18,.9)" : "rgba(255,255,255,.94)"; rr(g, bx, by, bw2, 26, 7); g.fill();
+      g.font = "800 11.5px Inter,system-ui"; g.textAlign = "left"; g.textBaseline = "middle"; g.fillStyle = n > 0 ? okc : this.f(.8); g.fillText(lab, bx + 9, by + 13);
+      g.fillStyle = this.dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)"; rr(g, bx + 112, by + 9, 52, 8, 4); g.fill(); g.fillStyle = n > 0 || pr >= 0 ? okc : bad; if (pc > 0 || n >= 3) { rr(g, bx + 112, by + 9, Math.max(6, 52 * (n >= 3 ? 1 : pc)), 8, 4); g.fill(); }
+      g.font = "800 12px Inter,system-ui"; g.textAlign = "right"; g.fillStyle = n > 0 ? okc : this.f(.8); g.fillText(pct, bx + bw2 - 9, by + 13); }
     /* podpanele */
     this.panes(g, plotW, i0, i1, P);
     this.drawCross();
