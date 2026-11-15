@@ -31,7 +31,7 @@ class PriceChart {
       b.addEventListener("click", e => { e.preventDefault(); e.stopPropagation(); fn(); }); zb.appendChild(b); });
     wrap.appendChild(zb);
     const cv = this.cv;
-    cv.addEventListener("mousedown", e => { this.drag = { x: e.clientX, s: this.start, moved: false }; });
+    cv.addEventListener("mousedown", e => { this.drag = { x: e.clientX, y: e.clientY, s: this.start, yo: this.yo || 0, ys: this.ys || 1, moved: false }; });
     window.addEventListener("mouseup", this._up = e => {
       if (this.drag && !this.drag.moved && this.addMode && this.onAdd) {
         const q = this.pos(e), x = q.x, y = q.y;
@@ -41,8 +41,8 @@ class PriceChart {
     });
     window.addEventListener("mousemove", this._mv = e => {
       const r = cv.getBoundingClientRect();
-      if (this.drag) { const dx = e.clientX - this.drag.x; if (Math.abs(dx) > 3) this.drag.moved = true;
-        if (this.drag.moved) { this.start = this.drag.s - dx / this.barW; this.clamp(); cv.style.cursor = "grabbing"; this.dirty = true; } }
+      if (this.drag) { const dx = e.clientX - this.drag.x, dy = e.clientY - this.drag.y; if (Math.abs(dx) > 3 || Math.abs(dy) > 3) this.drag.moved = true;
+        if (this.drag.moved) { const mh = (this.P && this.P.main && this.P.main.h) || 300; this.yo = this.drag.yo + dy / mh * 2 * this.drag.ys; this.start = this.drag.s - dx / this.barW; this.clamp(); cv.style.cursor = "grabbing"; this.dirty = true; } }
       if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
         this.cross = this.pos(e); if (this.drag && this.drag.moved) this.dirty = true; this.drawCross(); this.hover();
       } else if (this.cross) { this.cross = null; this.drawCross(); this.hover(); }
@@ -50,7 +50,7 @@ class PriceChart {
     cv.addEventListener("mouseleave", () => { this.cross = null; this.drawCross(); this.hover(); });
     cv.addEventListener("wheel", e => {
       e.preventDefault(); const x = this.pos(e).x;
-      const idx = this.start + x / this.barW; const f = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+      const idx = this.start + x / this.barW; const f = Math.exp(-Math.max(-60, Math.min(60, e.deltaY)) * .0012);
       this.barW = Math.min(40, Math.max(2.5, this.barW * f)); this.start = idx - x / this.barW; this.clamp(); this.dirty = true;
     }, { passive: false });
     cv.addEventListener("dblclick", () => { this.reset(); });
@@ -65,7 +65,7 @@ class PriceChart {
     window.addEventListener("mousemove", this._ymv = e => { if (ya) yset(e.clientY); });
     window.addEventListener("mouseup", this._yup = () => { ya = null; });
     az.addEventListener("dblclick", () => { this.ys = 1; this.dirty = true; });
-    az.addEventListener("wheel", e => { e.preventDefault(); this.ys = Math.min(8, Math.max(.12, this.ys * (e.deltaY > 0 ? 1.1 : 1 / 1.1))); this.dirty = true; }, { passive: false });
+    az.addEventListener("wheel", e => { e.preventDefault(); this.ys = Math.min(8, Math.max(.12, this.ys * Math.exp(Math.max(-60, Math.min(60, e.deltaY)) * .0012))); this.dirty = true; }, { passive: false });
     /* dodir: jedan prst povlaci graf, dva prsta zumiraju, dodir postavlja liniju u nacinu "+ Moja linija" */
     let tp = null; const dist = e => Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
     cv.addEventListener("touchstart", e => { if (e.touches.length === 2) tp = { pin: dist(e), bw: this.barW, mid: (e.touches[0].clientX + e.touches[1].clientX) / 2, st: this.start };
@@ -98,7 +98,7 @@ class PriceChart {
   setData(c, tf) { this.c = c; this.tf = tf; this.calc(); this.reset(); }
   calc() { const cl = this.c.map(k => k.c);
     this.e20 = emaArr(cl, 20); this.e50 = emaArr(cl, 50); this.e200 = emaArr(cl, 200); this.rsi = rsiArr(cl); this.mc = macdArr(cl); }
-  reset() { this.ys = 1; this.barW = 9; const vis = (this.W - this.axisW) / this.barW; this.start = this.c.length - vis + 8; this.clamp(); this.dirty = true; }
+  reset() { this.ys = 1; this.yo = 0; this.barW = 9; const vis = (this.W - this.axisW) / this.barW; this.start = this.c.length - vis + 8; this.clamp(); this.dirty = true; }
   zoomT(f) { const plotW = this.W - this.axisW, x = plotW * .5, idx = this.start + x / this.barW; this.barW = Math.min(40, Math.max(2.5, this.barW * f)); this.start = idx - x / this.barW; this.clamp(); this.dirty = true; }
   zoomP(f) { this.ys = Math.min(8, Math.max(.12, (this.ys || 1) / f)); this.dirty = true; }
   clamp() { const vis = (this.W - this.axisW) / this.barW; this.start = Math.max(-vis * .6, Math.min(this.c.length - vis * .4, this.start)); }
@@ -140,7 +140,7 @@ class PriceChart {
     openSigs.forEach(s => { [s.t2, s.t3].forEach(v => { if (!s.short && v > mx && v - mn < cr * 2.2) mx = v; if (s.short && v < mn && mx - v < cr * 2.2) mn = v; }); });
     this.lines.forEach(l => { if (l.price < mn * 1.0 && l.price > mn * .8) mn = l.price; if (l.price > mx && l.price < mx * 1.2) mx = l.price; });
     const pad = (mx - mn) * .06 || mx * .01; P.main.min = mn - pad; P.main.max = mx + pad;
-    if (this.ys && this.ys !== 1) { const cc = (P.main.min + P.main.max) / 2, hh = (P.main.max - P.main.min) / 2 * this.ys; P.main.min = cc - hh; P.main.max = cc + hh; }
+    if ((this.ys && this.ys !== 1) || this.yo) { const h0 = (P.main.max - P.main.min) / 2, cc = (P.main.min + P.main.max) / 2 + (this.yo || 0) * h0, hh = h0 * (this.ys || 1); P.main.min = cc - hh; P.main.max = cc + hh; }
     if (this.az) { this.az.style.top = P.main.y + "px"; this.az.style.height = P.main.h + "px"; }
     const yP = (p) => P.main.y + (P.main.max - p) / (P.main.max - P.main.min) * P.main.h;
     /* mreza + os cijene */
