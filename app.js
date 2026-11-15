@@ -616,7 +616,7 @@ function chartSigs() {
   return ss.map(s => { const o = isOpen(s); let xp = null, lab = ""; if (!o) { xp = s.reason === "T3" ? s.t3 : s.reason === "stop" ? s.stop : s.reason === "stop_na_ulazu" ? s.entry : null;
       if (xp == null && chart) { const i = chart.idxOfTime(s.exit); const k = chart.c[Math.max(0, Math.min(chart.c.length - 1, Math.round(i)))]; xp = k ? k.c : s.entry; }
       lab = (REASON_TXT[s.reason] || "") + " " + fmtR(s.rnet); }
-    return { id: s.id, open: o, start: s.created, end: o ? null : s.exit, entry: s.entry, stop: s.stop, t1: s.t1, t2: s.t2, t3: s.t3, rnet: s.rnet, exitPrice: xp, exitLabel: lab, kind: s.kind, short: isShort(s) }; });
+    return { id: s.id, open: o, start: s.created, end: o ? null : s.exit, entry: s.entry, stop: s.stop, t1: s.t1, t2: s.t2, t3: s.t3, rnet: s.rnet, exitPrice: xp, exitLabel: lab, kind: s.kind, short: isShort(s), hit: (s.hit || []).join(",") }; });
 }
 function paintChartSide() {
   const sg = $("#gsigs"); if (!sg) return; const ss = S.rows.filter(s => s.pair === chartState.pair && s.status !== "skipped_capital").sort((a, b) => b.created - a.created);
