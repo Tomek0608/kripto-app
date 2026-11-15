@@ -417,7 +417,8 @@ function vSignali(arg) {
   const rNow = s => { const p = pxNow(s); return isFinite(p) ? (isShort(s) ? s.entry - p : p - s.entry) / Math.abs(s.entry - s.stop) : NaN; };
   const ord = { bodovi: (a, b) => (b.score - a.score) || (b.created - a.created), novi: (a, b) => b.created - a.created, stari: (a, b) => a.created - b.created,
     t1: (a, b) => (isFinite(rNow(b)) ? rNow(b) : -9) - (isFinite(rNow(a)) ? rNow(a) : -9), stop: (a, b) => (isFinite(rNow(a)) ? rNow(a) : 9) - (isFinite(rNow(b)) ? rNow(b) : 9) }[sigFilter.o] || ((a, b) => b.score - a.score);
-  const rows = all.filter(s => sigFilter.s === "svi" || (sigFilter.s === "otvoreni" ? isOpen(s) : !isOpen(s))).filter(s => inDay(s.created)).sort(ord);
+  const sSt = isNarrow() ? sigFilter.s : "otvoreni";
+  const rows = all.filter(s => sSt === "svi" || (sSt === "otvoreni" ? isOpen(s) : !isOpen(s))).filter(s => inDay(s.created)).sort(ord);
   const jIds = new Set(J().map(t => t.sig));
   const chip = (on, attr, t) => `<button class="chip-btn ${on ? "on" : ""}" ${attr}>${t}</button>`;
   const sigBar = () => {
@@ -431,8 +432,14 @@ function vSignali(arg) {
     <div class="sfrow"><span class="muted" style="font-size:12px">Poredak:</span>${[["bodovi", "Bodovi"], ["t1", "Najbliže T1"], ["stop", "Najbliže stopu"], ["novi", "Najnoviji"], ["stari", "Najstariji"]].map(([k, t]) => chip(sigFilter.o === k, `data-o="${k}"`, t)).join("")}</div></div>`;
   };
   const cnt = { svi: rows.length, pravi: rows.filter(isReal).length, sjene: rows.filter(isShadow).length };
-  const fl = rows.filter(s => (sigFilter.f === "svi" || (sigFilter.f === "pravi" && isReal(s)) || (sigFilter.f === "sjene" && isShadow(s))) && (sigFilter.sd === "sve" || (sigFilter.sd === "short") === isShort(s)) && (sigFilter.tf === "sve" || s.tf === sigFilter.tf) && (!sigFilter.nj || !jIds.has(s.id)) && (!sigFilter.q || s.pair.includes(sigFilter.q.toUpperCase())));
+  const fl = rows.filter(s => (sigFilter.f === "svi" || (sigFilter.f === "pravi" && isReal(s)) || (sigFilter.f === "sjene" && isShadow(s))) && (!isNarrow() || ((sigFilter.sd === "sve" || (sigFilter.sd === "short") === isShort(s)) && (sigFilter.tf === "sve" || s.tf === sigFilter.tf) && (!sigFilter.nj || !jIds.has(s.id)))) && (!sigFilter.q || s.pair.includes(sigFilter.q.toUpperCase())));
   const sel = all.find(s => s.id === arg) || fl[0] || rows[0];
+  const sigBarD = () => `<div id="sfilter"><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${[["svi", "Svi"], ["pravi", "Pravi"], ["sjene", "Sjene"]].map(([k, t]) => `<button class="chip-btn ${sigFilter.f === k ? "on" : ""}" data-f="${k}">${t} (${cnt[k]})</button>`).join("")}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;align-items:center"><span class="muted" style="font-size:12px">Stiglo:</span>${[["sve", "Sve"], ["danas", "Danas"], ["jucer", "Jučer"], ["24h", "24 h"], ["7d", "7 dana"]].map(([k, t]) => `<button class="chip-btn ${sigFilter.d === k ? "on" : ""}" data-d="${k}">${t}</button>`).join("")}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;align-items:center"><span class="muted" style="font-size:12px">Poredak:</span>${[["bodovi", "Po bodovima"], ["novi", "Najnoviji"], ["stari", "Najstariji"]].map(([k, t]) => `<button class="chip-btn ${sigFilter.o === k ? "on" : ""}" data-o="${k}">${t}</button>`).join("")}</div></div>`;
+  const listD = fl.map(s => `<div class="item k-${isShadow(s) ? "shadow" : "real"} ${sel && s.id === sel.id ? "on" : ""}" data-go="#/signali/${esc(s.id)}"><span class="coin ${isShadow(s) ? "g" : ""}"><i>${esc(dn(base(s.pair)).slice(0, 2))}</i></span>
+    <div class="t"><b>${esc(dn(s.pair))} · ${isSR(s) ? "SJENA · S/R" + (isShort(s) ? " · SHORT" : "") : isShadow(s) ? "SJENA" + (isShort(s) ? " · SHORT" : "") : "PRAVI · " + (isShort(s) ? "SHORT" : "LONG")}</b><span>${fmtT(s.created)} · ${s.tf}</span></div><span class="sbadge" title="Ocjena signala (od 100)"><b>${s.score}</b><small>bodova</small></span>${statusTag(s)}
+    <div class="lv"><div class="live"><i>Cijena</i><b data-live="${esc(s.pair)}" data-k="price">${S.prices[s.pair] ? fmtP(S.prices[s.pair]) : "–"}</b><em data-live="${esc(s.pair)}" data-k="spp" data-sid="${esc(s.id)}"></em></div><div><i>Ulaz</i><b>${fmtP(s.entry)}</b></div><div><i>Stop</i><b class="down">${fmtP(s.stop_cur || s.stop)}</b></div><div><i>T1</i><b class="up">${fmtP(s.t1)}</b></div><div><i>T2</i><b class="up">${fmtP(s.t2)}</b></div><div><i>T3</i><b class="up">${fmtP(s.t3)}</b></div></div></div>`).join("") || '<div class="empty">Nema otvorenih signala za ovaj filtar. Zatvoreni su u <a href="#/arhiva">Arhivi</a>.</div>';
   const ageTxt = t => { const m = Math.max(0, Math.round((Date.now() - t) / 6e4)); return m < 60 ? "prije " + m + " min" : m < 1440 ? "prije " + Math.floor(m / 60) + " h" + (m % 60 ? " " + (m % 60) + " min" : "") : "prije " + Math.floor(m / 1440) + " d"; };
   const list = fl.map(s => {
     const op = isOpen(s), sh = isShort(s), px = op ? pxNow(s) : sigExitPrice(s), r = op ? rNow(s) : s.rnet;
@@ -460,8 +467,8 @@ function vSignali(arg) {
   if (sel) det = (isOpen(sel) ? "" : '<div class="note" style="margin:0 0 10px">Nema otvorenih signala. Ispod je zadnji zatvoreni signal (' + esc(dn(sel.pair)) + '), samo za pregled.</div>') + sigDetail(sel, false);
   return shell("Signali i analiza", "Otvoreni signali. Odaberite signal da vidite cijelu analizu i razloge. Zatvoreni su u Arhivi.", `<div class="split"><div>
     <div class="legend"><span class="tag real">Pravi signal</span><span class="tag shadow">Sjena (probni)</span></div>
-    ${sigBar()}
-    <input class="txt" id="sq" placeholder="Traži par, npr. DODO" value="${esc(sigFilter.q)}" style="margin-bottom:10px"><div class="list">${list}</div></div><div>${det}</div></div>`);
+    ${sigBarD()}
+    <input class="txt" id="sq" placeholder="Traži par, npr. DODO" value="${esc(sigFilter.q)}" style="margin-bottom:10px"><div class="list">${listD}</div></div><div>${det}</div></div>`);
 }
 
 /* ---------------- Arhiva parova ---------------- */
