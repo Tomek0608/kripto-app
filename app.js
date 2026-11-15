@@ -39,7 +39,7 @@ async function refreshData(quiet) {
     else { S.rows = await loadRemote(cfg); S.source = "github"; S.err = ""; try { S.engine = await loadEngineAge(cfg); } catch (e) {} }
     S.updated = Date.now();
   } catch (e) { S.err = String(e.message || e); if (!S.rows.length) { S.rows = await loadDemo(); S.source = "demo"; } }
-  notifyChanges(); jPull(); syncLive(); const sg = S.source + "|" + S.err + "|" + JSON.stringify(S.rows) + "|" + JSON.stringify(S.engine || ""); const same = quiet && sg === S.lastSig; S.lastSig = sg; if (!same && (!quiet || currentView !== "graf")) render(); topPills();
+  notifyChanges(); jPull(); jAuto(); syncLive(); const sg = S.source + "|" + S.err + "|" + JSON.stringify(S.rows) + "|" + JSON.stringify(S.engine || ""); const same = quiet && sg === S.lastSig; S.lastSig = sg; if (!same && (!quiet || currentView !== "graf")) render(); topPills();
 }
 /* obavijesti: novi signal, zatvoren signal */
 function notify(msg) {
@@ -759,6 +759,50 @@ function jTotals(arr) {
 }
 const nowLocal = () => { const d = new Date(Date.now() - new Date().getTimezoneOffset() * 6e4); return d.toISOString().slice(0, 16); };
 let jExit = "", jEdit = "";
+/* ---- plan izlaza: T1/T2/T3 + stop, izvrsava se automatski kad cijena dotakne razinu ---- */
+const PLAN_KEYS = ["T1", "T2", "T3"];
+function planHtml(pfx, plan, pre) {
+  const dp = lsGet("jplan", [50, 25, 25]), by = k => (plan || []).find(x => x.k === k);
+  const pv = { T1: pre && pre.t1, T2: pre && pre.t2, T3: pre && pre.t3, Stop: pre && pre.stop };
+  const cell = (k, i) => { const x = by(k), dd = x && x.done, val = x ? x.p : pv[k], pc = x ? x.pct : dp[i];
+    return `<div><label class="f">${k} cijena${dd > 0 ? " ✓ izvršeno" : ""}</label><input class="txt" id="${pfx}_p${i + 1}" inputmode="decimal" value="${val ? fmtRaw(val) : ""}" ${dd ? "disabled" : ""}></div><div><label class="f">${k} udio početne pozicije (%)</label><input class="txt" id="${pfx}_q${i + 1}" inputmode="decimal" value="${pc}" ${dd ? "disabled" : ""}></div>`; };
+  const st = by("Stop");
+  return `<h2 style="margin-top:14px;font-size:15px">Plan izlaza (automatski)</h2><div class="sub">Kad cijena dotakne razinu, aplikacija sama upiše izlaz s tim udjelom početne pozicije. Stop zatvara sve preostalo. Prazna cijena = bez te razine. Radi dok je aplikacija otvorena, a pri sljedećem otvaranju nadoknadi što je cijena dotaknula u međuvremenu.</div>
+    <div class="jgrid">${PLAN_KEYS.map(cell).join("")}<div><label class="f">Stop cijena${st && st.done > 0 ? " ✓ izvršeno" : ""}</label><input class="txt" id="${pfx}_ps" inputmode="decimal" value="${st ? fmtRaw(st.p) : (pre && pre.stop ? fmtRaw(pre.stop) : "")}" ${st && st.done ? "disabled" : ""}></div></div>`;
+}
+function readPlan(pfx, old) {
+  const num = id => parseFloat(String($("#" + id).value).replace(",", ".")), out = [];
+  PLAN_KEYS.forEach((k, i) => { const o = (old || []).find(x => x.k === k); if (o && o.done) { out.push(o); return; } const p = num(pfx + "_p" + (i + 1)), q = num(pfx + "_q" + (i + 1)); if (p > 0 && q > 0) out.push({ k, p, pct: Math.min(100, q), done: 0 }); });
+  const o = (old || []).find(x => x.k === "Stop"); if (o && o.done) out.push(o); else { const p = num(pfx + "_ps"); if (p > 0) out.push({ k: "Stop", p, pct: 100, stop: 1, done: 0 }); }
+  return out;
+}
+function checkPlan(side, entry, plan) {
+  const sh = side === "SHORT"; let sum = 0;
+  for (const x of plan) { if (x.done) { if (!x.stop) sum += x.pct; continue; }
+    if (x.stop) { if (sh ? !(x.p > entry) : !(x.p < entry)) return "Stop mora biti " + (sh ? "iznad" : "ispod") + " cijene ulaza."; }
+    else { sum += x.pct; if (sh ? !(x.p < entry) : !(x.p > entry)) return x.k + " mora biti " + (sh ? "ispod" : "iznad") + " cijene ulaza."; } }
+  return sum > 100.001 ? "Zbroj udjela po razinama je " + fmtN(sum, 0) + "%, a smije biti najviše 100%." : "";
+}
+let jAutoBusy = false;
+async function jAuto() {
+  if (jAutoBusy || cfg.demo) return; jAutoBusy = true;
+  try {
+    const todo = J().filter(t => t.plan && jOpen(t) && t.plan.some(x => !x.done)), kl = {};
+    for (const t of todo) { let st = Math.max(t.chk || 0, t.t), ks = [];
+      for (let n = 0; n < 4; n++) { const r = await fetch(`${BINANCE}/api/v3/klines?symbol=${t.pair}&interval=1m&startTime=${st}&limit=1000`); if (!r.ok) break; const d = await r.json(); if (!Array.isArray(d) || !d.length) break; ks = ks.concat(d); if (d.length < 1000) break; st = d[d.length - 1][0] + 60000; }
+      kl[t.id] = ks; }
+    const a = J(); let changed = false; const now = Date.now();
+    for (const t of a) { const ks = kl[t.id]; if (!ks || !t.plan || !jOpen(t)) continue; const sh = t.side === "SHORT", orig = jqty(t);
+      for (const k of ks) { if (!jOpen(t)) break; const hi = +k[2], lo = +k[3], et = k[0] + 59999;
+        const stop = t.plan.find(x => x.stop && !x.done);
+        if (stop && (sh ? hi >= stop.p : lo <= stop.p)) { const rem = jqty(t) - jsold(t); t.exits.push({ t: et, p: stop.p, q: rem, auto: "Stop" }); t.plan.forEach(x => { if (!x.done) x.done = x === stop ? et : -1; }); changed = true; notify(`Stop dotaknut: ${dn(t.pair)} zatvoren po ${fmtP(stop.p)}`); break; }
+        for (const x of t.plan) { if (x.stop || x.done || !jOpen(t)) continue; if (sh ? lo <= x.p : hi >= x.p) { const rem = jqty(t) - jsold(t), q = Math.min(rem, orig * x.pct / 100); t.exits.push({ t: et, p: x.p, q, auto: x.k }); x.done = et; changed = true; notify(`${x.k} dosegnut: ${dn(t.pair)} izlaz ${fmtN(x.pct, 0)}% po ${fmtP(x.p)}`); } }
+        if (!jOpen(t)) { t.plan.forEach(x => { if (!x.done) x.done = -1; }); changed = true; } }
+      const closedEnds = ks.filter(k => k[6] < now); if (closedEnds.length) { const e = closedEnds[closedEnds.length - 1][6] + 1; if (e !== t.chk) { t.chk = e; changed = true; } } }
+    if (changed) { saveJ(a); syncLive(); if (["moj", "dnevnik", "mojastat", "usporedba"].includes(currentView) && !jExit && !jEdit) render(); }
+  } catch (e) {}
+  jAutoBusy = false;
+}
 function vDnevnik(arg) {
   const a = J().filter(t => inRange(t.t)).sort((x, y) => y.t - x.t), tt = jTotals(a);
   const sigId = arg && S.rows.find(s => s.id === arg) ? arg : "";
@@ -771,6 +815,7 @@ function vDnevnik(arg) {
   const edForm = ed ? `<div class="modal" id="emodal"><div class="card mbox"><h2>Uredi trejd · ${esc(dn(ed.pair))}</h2><div class="sub">Ispravi krivo upisane podatke. Izmjene se odmah preračunavaju.</div>
     <div class="jgrid"><div><label class="f">Par</label><input class="txt" id="ep" value="${esc(dn(ed.pair))}"></div><div><label class="f">Cijena ulaza</label><input class="txt" id="ec" inputmode="decimal" value="${fmtRaw(ed.p)}"></div><div><label class="f">Uloženo (USDT)</label><input class="txt" id="eu" inputmode="decimal" value="${fmtRaw(ed.usdt)}"></div>
     <div><label class="f">Smjer</label><select class="txt" id="eside"><option value="LONG">Long</option><option value="SHORT" ${ed.side === "SHORT" ? "selected" : ""}>Short</option></select></div><div><label class="f">Vrijeme ulaza</label><input class="txt" id="et" type="datetime-local" value="${toLocal(ed.t)}"></div><div><label class="f">Provizija po strani (%)</label><input class="txt" id="ef" inputmode="decimal" value="${ed.fee}"></div></div>
+    ${ed.exits.length || jOpen(ed) ? planHtml("el", ed.plan) : ""}
     ${ed.exits.length ? `<h2 style="margin-top:14px;font-size:15px">Izlazi</h2>${ed.exits.map((x, i) => `<div class="jgrid" style="align-items:end"><div><label class="f">Cijena izlaza ${i + 1}</label><input class="txt" data-xp="${i}" inputmode="decimal" value="${fmtRaw(x.p)}"></div><div><label class="f">Vrijeme izlaza</label><input class="txt" data-xt="${i}" type="datetime-local" value="${toLocal(x.t)}"></div><div><button class="btn sm" data-xdel="${i}">Obriši ovaj izlaz</button></div></div>`).join("")}` : ""}
     <div style="display:flex;gap:10px;margin-top:14px"><button class="btn primary" id="esave">Spremi izmjene</button><button class="btn" id="ecancel">Odustani</button></div></div></div>` : "";
   const exForm = ex ? `<div class="modal" id="xmodal"><div class="card mbox"><h2>Izlaz iz trejda · ${esc(ex.pair)}</h2><div class="sub">Preostalo ${fmtN(jcalc(ex, S.prices[ex.pair]).remPct, 0)}% pozicije. Za djelomičan izlaz upišite manji udio.</div>
@@ -779,7 +824,7 @@ function vDnevnik(arg) {
     <div><label class="f">Vrijeme izlaza</label><input class="txt" id="xt" type="datetime-local" value="${nowLocal()}"></div></div>
     <div style="display:flex;gap:10px;margin-top:14px"><button class="btn primary" id="xsave">Spremi izlaz</button><button class="btn" id="xcancel">Odustani</button></div></div></div>` : "";
   const rowsH = a.map(t => { const c = jcalc(t, S.prices[t.pair]), op = jOpen(t), sg = S.rows.find(s => s.id === t.sig);
-    return `<tr><td>${coin(t.pair)}${t.side === "SHORT" ? ' <span class="tag short">SHORT</span>' : ""}</td><td>${sg ? kindTag(sg) : '<span class="muted">ručno</span>'}</td><td class="muted">${fmtT(t.t)}</td><td class="r">${fmtP(t.p)}</td><td class="r">${fmtN(t.usdt)}</td>
+    return `<tr><td>${coin(t.pair)}${t.side === "SHORT" ? ' <span class="tag short">SHORT</span>' : ""}${t.plan && t.plan.length ? `<div class="muted" style="font-size:11px;margin-top:3px">${t.plan.map(x => `${x.k} ${fmtP(x.p)}${x.stop ? "" : " " + fmtN(x.pct, 0) + "%"}${x.done > 0 ? " ✓" : x.done < 0 ? " –" : ""}`).join(" · ")}</div>` : ""}</td><td>${sg ? kindTag(sg) : '<span class="muted">ručno</span>'}</td><td class="muted">${fmtT(t.t)}</td><td class="r">${fmtP(t.p)}</td><td class="r">${fmtN(t.usdt)}</td>
     <td class="r">${op ? `<b data-live="${t.pair}" data-k="price">${S.prices[t.pair] ? fmtP(S.prices[t.pair]) : "–"}</b>` : "–"}</td>
     <td class="r">${isNaN(c.avgExit) ? "–" : fmtP(c.avgExit)}${t.exits.length ? `<div class="muted" style="font-size:11px">${fmtT(t.exits[t.exits.length - 1].t)}</div>` : ""}</td>
     <td class="r">${op ? fmtN(c.remPct, 0) + "%" : "zatvoreno"}</td>
@@ -800,6 +845,7 @@ function vDnevnik(arg) {
     <div><label class="f">Uloženo (USDT)</label><input class="txt" id="nu" inputmode="decimal" placeholder="npr. 100"></div>
     <div><label class="f">Vrijeme ulaza</label><input class="txt" id="nt" type="datetime-local" value="${nowLocal()}"></div>
     <div><label class="f">Provizija po strani (%)</label><input class="txt" id="nf" inputmode="decimal" value="${lsGet("jfee", 0.1)}"></div></div>
+    ${planHtml("nl", null, pre)}
     <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap"><button class="btn primary" id="nsave">Spremi ulaz</button><button class="btn" id="jcsv">Izvezi CSV (sigurnosna kopija)</button></div></div>
   ${exForm}${edForm}
   <div class="card mt"><h2>Moji trejdovi</h2><table><tr><th>Par</th><th>Signal</th><th>Ulaz</th><th class="r">Cijena ulaza</th><th class="r">USDT</th><th class="r">Uživo</th><th class="r">Izlaz</th><th class="r">Preostalo</th><th class="r">Zarada USDT</th><th class="r">%</th><th></th></tr>
@@ -811,12 +857,14 @@ const mojStart = () => { const v = +lsGet("mojStart", 0); return v > 0 ? v : MOJ
 const fmtRaw = v => String(+(+v).toPrecision(8));
 function bindDnevnik(arg) {
   const num = id => parseFloat(String($(id).value).replace(",", "."));
-  const sg = $("#nsig"); sg.addEventListener("change", () => { const s = S.rows.find(x => x.id === sg.value); if (s) { $("#npair").value = dn(s.pair); $("#np").value = fmtRaw(s.entry); $("#nside").value = s.side; } });
+  const sg = $("#nsig"); sg.addEventListener("change", () => { const s = S.rows.find(x => x.id === sg.value); if (s) { $("#npair").value = dn(s.pair); $("#np").value = fmtRaw(s.entry); $("#nside").value = s.side; [s.t1, s.t2, s.t3].forEach((v, i) => { $("#nl_p" + (i + 1)).value = fmtRaw(v); }); $("#nl_ps").value = fmtRaw(s.stop); } });
   $("#nsave").addEventListener("click", () => {
     const raw = $("#npair").value.trim().toUpperCase(), pair = isLatin(raw) ? realSym(raw.replace(/[^A-Z0-9]/g, "")) : raw, p = num("#np"), u = num("#nu"), f = num("#nf"), t = new Date($("#nt").value).getTime();
     if (!pair || !(p > 0) || !(u > 0) || !isFinite(t)) { toast("Upišite par, cijenu, iznos u USDT i vrijeme ulaza."); return; }
-    const a = J(); a.push({ id: "j" + Date.now(), pair: pair.endsWith("USDT") ? pair : pair + "USDT", sig: sg.value, t, p, usdt: u, fee: isFinite(f) ? f : 0.1, side: $("#nside").value === "SHORT" ? "SHORT" : "LONG", exits: [] }); saveJ(a); lsSet("jfee", isFinite(f) ? f : 0.1);
-    syncLive(); toast("Ulaz spremljen."); if (arg) location.hash = "#/dnevnik"; else render();
+    const side = $("#nside").value === "SHORT" ? "SHORT" : "LONG", plan = readPlan("nl", null), perr = checkPlan(side, p, plan); if (perr) { toast(perr); return; }
+    const a = J(); a.push({ id: "j" + Date.now(), pair: pair.endsWith("USDT") ? pair : pair + "USDT", sig: sg.value, t, p, usdt: u, fee: isFinite(f) ? f : 0.1, side, exits: [], plan: plan.length ? plan : undefined }); saveJ(a); lsSet("jfee", isFinite(f) ? f : 0.1);
+    if (plan.length) lsSet("jplan", PLAN_KEYS.map((k, i) => { const x = plan.find(y => y.k === k); return x ? x.pct : [50, 25, 25][i]; }));
+    syncLive(); toast(plan.length ? "Ulaz spremljen. Plan izlaza se izvršava automatski." : "Ulaz spremljen."); jAuto(); if (arg) location.hash = "#/dnevnik"; else render();
   });
   $("#jcsv").addEventListener("click", () => {
     const rows = [["par", "smjer", "signal", "ulaz_vrijeme", "ulaz_cijena", "usdt", "provizija_pct", "izlazi(vrijeme:cijena:kolicina)"]].concat(J().map(t => [t.pair, t.side === "SHORT" ? "SHORT" : "LONG", t.sig, new Date(t.t).toISOString(), t.p, t.usdt, t.fee, t.exits.map(x => new Date(x.t).toISOString() + ":" + x.p + ":" + x.q).join("|")]));
@@ -833,7 +881,8 @@ function bindDnevnik(arg) {
       if (!pair || !(p > 0) || !(u > 0) || !isFinite(tm)) { toast("Provjeri par, cijenu, iznos i vrijeme."); return; }
       const oldQ = jqty(t); t.pair = pair.endsWith("USDT") ? pair : pair + "USDT"; t.p = p; t.usdt = u; t.t = tm; t.fee = isFinite(f) ? f : 0.1; t.side = $("#eside").value === "SHORT" ? "SHORT" : "LONG"; const newQ = jqty(t);
       document.querySelectorAll("[data-xp]").forEach(e => { const i = +e.dataset.xp, xp = parseFloat(String(e.value).replace(",", ".")), xt = new Date(document.querySelector('[data-xt="' + i + '"]').value).getTime(); if (xp > 0) t.exits[i].p = xp; if (isFinite(xt)) t.exits[i].t = xt; t.exits[i].q = t.exits[i].q * newQ / oldQ; });
-      saveJ(a); jEdit = ""; syncLive(); toast("Izmjene spremljene."); render(); });
+      const plan = $("#el_p1") ? readPlan("el", t.plan) : t.plan, perr = plan ? checkPlan(t.side, t.p, plan) : ""; if (perr) { toast(perr); return; } if ($("#el_p1")) t.plan = plan.length ? plan : undefined;
+      saveJ(a); jEdit = ""; syncLive(); toast("Izmjene spremljene."); jAuto(); render(); });
   }
   document.querySelectorAll("[data-jdel]").forEach(b => b.addEventListener("click", () => { if (!confirm("Obrisati ovaj trejd iz dnevnika?")) return; saveJ(J().filter(t => t.id !== b.dataset.jdel)); syncLive(); render(); }));
   if ($("#xsave")) {
