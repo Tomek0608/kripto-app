@@ -129,12 +129,10 @@ function boot() {
     <div class="grow"></div><button class="ri" id="themebtn" aria-label="Promijeni temu"></button>
     <a class="ri" href="#/postavke" data-nav="postavke">${svg(ICON.set)}<span class="tip">Postavke</span></a></aside>
     <main class="main" id="main"><div class="topbar"><div class="crumb gl">Kripto signali <span>›</span> <b id="crumb">Pregled</b></div>
-      <label class="search gl">${svg('<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>').replace("<svg", '<svg width="18" height="18"')}<input id="gsearch" placeholder="Traži par, npr. DODO, pa Enter" autocomplete="off"></label>
       <div class="tb-right"><div class="pills" id="pills"></div><div class="clock gl" id="clock">–</div>
         <a class="ibtn gl" href="#/signali" id="bell" aria-label="Otvoreni signali">${svg('<path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10 21a2 2 0 0 0 4 0"/>')}<span class="dot" id="belldot" style="display:none"></span></a>
         <a class="ibtn avatar" href="#/postavke" aria-label="Postavke">TP</a></div></div><div id="page"></div></main></div>`;
   setTheme(lsGet("theme2", "reel")); $("#themebtn").addEventListener("click", () => setTheme(THEMES[(THEMES.indexOf(document.documentElement.dataset.theme) + 1) % THEMES.length]));
-  $("#gsearch").addEventListener("keydown", e => { if (e.key === "Enter") { const v = realSym(e.target.value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "")); if (v) { location.hash = "#/graf/" + (v.endsWith("USDT") ? v : v + "USDT"); e.target.value = ""; e.target.blur(); } } });
   const tick = () => { const d = new Date(); $("#clock").textContent = new Intl.DateTimeFormat("hr-HR", { timeZone: TZ, weekday: "short", day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).format(d); }; tick(); setInterval(tick, 10000);
   try { if ("serviceWorker" in navigator && /^https:|^http:\/\/localhost/.test(location.href)) navigator.serviceWorker.register("sw.js").catch(() => {}); } catch (e) {}
   document.addEventListener("click", e => { const b = e.target.closest && e.target.closest("[data-mt]"); if (!b) return; moneyTab = b.dataset.mt; const h = document.getElementById("moneyblk"); if (h) { moneyAt = Date.now(); const m = $("#main"), sc = m ? m.scrollTop : 0; h.outerHTML = moneyBlock(h.dataset.src); if (m) m.scrollTop = sc; } });
