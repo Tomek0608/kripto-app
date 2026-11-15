@@ -319,3 +319,6 @@ table.cmp .mine,table.cmp .mine b:not(.up):not(.down){color:var(--mine)}
 .sh-clr{background:none;border:0;color:var(--muted);font:inherit;font-size:13px}
 .sh-go{width:100%;margin-top:16px;padding:14px;border:0;border-radius:14px;background:#f5a65b;color:#1e1813;font:inherit;font-weight:800;font-size:15px}
 @media(max-width:1180px){.list::after{content:"";display:block;height:130px}.main{padding-bottom:calc(140px + env(safe-area-inset-bottom))}}
+body.shopen .main,body.shopen .main *{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;transition:none!important;animation:none!important}
+body.shopen #bg{animation:none}
+.sheet2{transform:translateZ(0)}
