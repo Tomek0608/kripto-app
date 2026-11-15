@@ -315,7 +315,7 @@ function vUsporedba() {
 }
 
 /* ---------------- Signali ---------------- */
-const sigFilter = { f: "svi", q: "" }, sdFilter = { f: "pravi", q: "" };
+const sigFilter = { f: "svi", q: "", d: "sve", o: "bodovi" }, sdFilter = { f: "pravi", q: "" };
 const sigExitPrice = s => (isFinite(s.grossR) && s.entry - s.stop) ? s.entry + s.grossR * (s.entry - s.stop) : NaN;
 const sigPct = s => isFinite(s.rnet) && s.entry ? s.rnet * Math.abs(s.entry - s.stop) / s.entry * 100 : NaN;
 function parseReasons(txt) {
@@ -396,17 +396,25 @@ function sigDetail(sel, onChart, mid) {
 
 function vSignali(arg) {
   const all = realRows().sort((a, b) => b.created - a.created);
-  const rows = all.filter(isOpen).sort((a, b) => (b.score - a.score) || (b.created - a.created));  // popis: samo otvoreni, od najvise do najmanje bodova; zatvoreni su u Arhivi
   if (!["svi", "pravi", "sjene"].includes(sigFilter.f)) sigFilter.f = "svi";
+  if (!["sve", "danas", "jucer", "24h", "7d"].includes(sigFilter.d)) sigFilter.d = "sve";
+  if (!["bodovi", "novi", "stari"].includes(sigFilter.o)) sigFilter.o = "bodovi";
+  const dayStart = (off) => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime() - off * 864e5; };
+  const inDay = (t) => sigFilter.d === "sve" || (sigFilter.d === "danas" && t >= dayStart(0)) || (sigFilter.d === "jucer" && t >= dayStart(1) && t < dayStart(0)) || (sigFilter.d === "24h" && t >= Date.now() - 864e5) || (sigFilter.d === "7d" && t >= Date.now() - 7 * 864e5);
+  const ord = { bodovi: (a, b) => (b.score - a.score) || (b.created - a.created), novi: (a, b) => b.created - a.created, stari: (a, b) => a.created - b.created }[sigFilter.o];
+  const rows = all.filter(isOpen).filter(s => inDay(s.created)).sort(ord);  // popis: samo otvoreni; zatvoreni su u Arhivi
+  const sigBar = () => `<div id="sfilter"><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${[["svi", "Svi"], ["pravi", "Pravi"], ["sjene", "Sjene"]].map(([k, t]) => `<button class="chip-btn ${sigFilter.f === k ? "on" : ""}" data-f="${k}">${t} (${cnt[k]})</button>`).join("")}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;align-items:center"><span class="muted" style="font-size:12px">Stiglo:</span>${[["sve", "Sve"], ["danas", "Danas"], ["jucer", "Jučer"], ["24h", "24 h"], ["7d", "7 dana"]].map(([k, t]) => `<button class="chip-btn ${sigFilter.d === k ? "on" : ""}" data-d="${k}">${t}</button>`).join("")}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;align-items:center"><span class="muted" style="font-size:12px">Poredak:</span>${[["bodovi", "Po bodovima"], ["novi", "Najnoviji"], ["stari", "Najstariji"]].map(([k, t]) => `<button class="chip-btn ${sigFilter.o === k ? "on" : ""}" data-o="${k}">${t}</button>`).join("")}</div></div>`;
   const cnt = { svi: rows.length, pravi: rows.filter(isReal).length, sjene: rows.filter(isShadow).length };
   const fl = rows.filter(s => (sigFilter.f === "svi" || (sigFilter.f === "pravi" && isReal(s)) || (sigFilter.f === "sjene" && isShadow(s))) && (!sigFilter.q || s.pair.includes(sigFilter.q.toUpperCase())));
   const sel = all.find(s => s.id === arg) || fl[0] || rows[0];
   const list = fl.map(s => `<div class="item k-${isShadow(s) ? "shadow" : "real"} ${sel && s.id === sel.id ? "on" : ""}" data-go="#/signali/${esc(s.id)}"><span class="coin ${isShadow(s) ? "g" : ""}"><i>${esc(dn(base(s.pair)).slice(0, 2))}</i></span>
     <div class="t"><b>${esc(dn(s.pair))} · ${isSR(s) ? "SJENA · S/R" + (isShort(s) ? " · SHORT" : "") : isShadow(s) ? "SJENA" + (isShort(s) ? " · SHORT" : "") : "PRAVI · " + (isShort(s) ? "SHORT" : "LONG")}</b><span>${fmtT(s.created)} · ${s.tf}</span></div><span class="sbadge" title="Ocjena signala (od 100)"><b>${s.score}</b><small>bodova</small></span>${statusTag(s)}
-    <div class="lv"><div class="live"><i>Cijena</i><b data-live="${esc(s.pair)}" data-k="price">${S.prices[s.pair] ? fmtP(S.prices[s.pair]) : "–"}</b><em data-live="${esc(s.pair)}" data-k="spp" data-sid="${esc(s.id)}"></em></div><div><i>Ulaz</i><b>${fmtP(s.entry)}</b></div><div><i>Stop</i><b class="down">${fmtP(s.stop_cur || s.stop)}</b></div><div><i>T1</i><b class="up">${fmtP(s.t1)}</b></div><div><i>T2</i><b class="up">${fmtP(s.t2)}</b></div><div><i>T3</i><b class="up">${fmtP(s.t3)}</b></div></div></div>`).join("") || '<div class="empty">Nema otvorenih signala. Zatvoreni su u <a href="#/arhiva">Arhivi</a>.</div>';
+    <div class="lv"><div class="live"><i>Cijena</i><b data-live="${esc(s.pair)}" data-k="price">${S.prices[s.pair] ? fmtP(S.prices[s.pair]) : "–"}</b><em data-live="${esc(s.pair)}" data-k="spp" data-sid="${esc(s.id)}"></em></div><div><i>Ulaz</i><b>${fmtP(s.entry)}</b></div><div><i>Stop</i><b class="down">${fmtP(s.stop_cur || s.stop)}</b></div><div><i>T1</i><b class="up">${fmtP(s.t1)}</b></div><div><i>T2</i><b class="up">${fmtP(s.t2)}</b></div><div><i>T3</i><b class="up">${fmtP(s.t3)}</b></div></div></div>`).join("") || '<div class="empty">Nema otvorenih signala za ovaj filtar. Zatvoreni su u <a href="#/arhiva">Arhivi</a>.</div>';
   if (isNarrow()) {
     if (!arg || !all.find(s => s.id === arg)) return shell("Signali i analiza", "Dodirnite signal da vidite graf, brojeve i razloge.", `<div class="legend"><span class="tag real">Pravi signal</span><span class="tag shadow">Sjena (probni)</span></div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px" id="sfilter">${[["svi", "Svi"], ["pravi", "Pravi"], ["sjene", "Sjene"]].map(([k, t]) => `<button class="chip-btn ${sigFilter.f === k ? "on" : ""}" data-f="${k}">${t} (${cnt[k]})</button>`).join("")}</div>
+    ${sigBar()}
     <input class="txt" id="sq" placeholder="Traži par, npr. DODO" value="${esc(sigFilter.q)}" style="margin-bottom:10px"><div class="list">${list}</div>`);
     const d = all.find(s => s.id === arg);
     const chartBlock = `<div class="card mt sgc"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px"><h2 style="margin:0">Graf</h2><div class="seg" id="sgtf">${Object.keys(INTERVAL).map(k => `<button data-tf="${k}" class="${chartState.tf === k ? "on" : ""}">${k}</button>`).join("")}</div></div><div class="chartwrap sgwrap" id="sgchart"></div></div>`;
@@ -416,7 +424,7 @@ function vSignali(arg) {
   if (sel) det = (isOpen(sel) ? "" : '<div class="note" style="margin:0 0 10px">Nema otvorenih signala. Ispod je zadnji zatvoreni signal (' + esc(dn(sel.pair)) + '), samo za pregled.</div>') + sigDetail(sel, false);
   return shell("Signali i analiza", "Otvoreni signali. Odaberite signal da vidite cijelu analizu i razloge. Zatvoreni su u Arhivi.", `<div class="split"><div>
     <div class="legend"><span class="tag real">Pravi signal</span><span class="tag shadow">Sjena (probni)</span></div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px" id="sfilter">${[["svi", "Svi"], ["pravi", "Pravi"], ["sjene", "Sjene"]].map(([k, t]) => `<button class="chip-btn ${sigFilter.f === k ? "on" : ""}" data-f="${k}">${t} (${cnt[k]})</button>`).join("")}</div>
+    ${sigBar()}
     <input class="txt" id="sq" placeholder="Traži par, npr. DODO" value="${esc(sigFilter.q)}" style="margin-bottom:10px"><div class="list">${list}</div></div><div>${det}</div></div>`);
 }
 
@@ -641,7 +649,7 @@ function bind(arg) {
   main.querySelectorAll("[data-go]").forEach(e => e.addEventListener("click", () => { if (e.dataset.sig) { chartState.sig = e.dataset.sig; lsSet("chartState", chartState); } location.hash = e.dataset.go; }));
   if (currentView === "pregled" || currentView === "moj") main.querySelectorAll("#eqseg button").forEach(b => b.addEventListener("click", () => { eqRange = b.dataset.r; lsSet("eqRange", eqRange); render(); }));
   if (currentView === "signali") {
-    main.querySelectorAll("#sfilter button").forEach(b => b.addEventListener("click", () => { sigFilter.f = b.dataset.f; render(); }));
+    main.querySelectorAll("#sfilter button").forEach(b => b.addEventListener("click", () => { if (b.dataset.f) sigFilter.f = b.dataset.f; if (b.dataset.d) sigFilter.d = b.dataset.d; if (b.dataset.o) sigFilter.o = b.dataset.o; render(); }));
     const q = $("#sq"); if (q) q.addEventListener("input", () => { sigFilter.q = q.value; const pos = q.selectionStart; render(); const n = $("#sq"); n.focus(); n.setSelectionRange(pos, pos); });
     if ($("#sgchart")) bindSigChart(arg);
   }
