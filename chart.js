@@ -156,7 +156,7 @@ class PriceChart {
     const sigGeo = this.signals.map(s => { const x0 = Math.max(0, xr(s.start)), x1 = s.end ? Math.min(plotW, Math.max(xr(s.end), xr(s.start) + 130)) : plotW; return { s, x0, x1, vis: x1 > 0 && xr(s.start) < plotW }; });
     g.save(); g.beginPath(); g.rect(0, P.main.y, plotW, P.main.h); g.clip();
     sigGeo.forEach(({ s, x0, x1, vis }) => { if (!vis || x1 <= x0) return; const a = s.open ? 1 : .55;
-      g.fillStyle = (this.dark ? `rgba(63,224,160,${.13 * a})` : `rgba(30,142,62,${.11 * a})`); g.fillRect(x0, yP(s.t3), x1 - x0, yP(s.entry) - yP(s.t3));
+      g.fillStyle = (this.dark ? `rgba(63,224,160,${.13 * a})` : `rgba(30,142,62,${.11 * a})`); g.fillRect(x0, yP(s.v2 ? s.t1 : s.t3), x1 - x0, yP(s.entry) - yP(s.v2 ? s.t1 : s.t3));
       g.fillStyle = (this.dark ? `rgba(255,90,95,${.17 * a})` : `rgba(217,59,48,${.13 * a})`); g.fillRect(x0, yP(s.entry), x1 - x0, yP(s.stop) - yP(s.entry)); });
     /* EMA */
     if (this.o.ema) [[this.e20, "#b98a2f"], [this.e50, "#4c78b8"], [this.e200, "#7a5fb0"]].forEach(([arr, col]) => {
@@ -168,7 +168,7 @@ class PriceChart {
       const w = Math.max(1, bw * .62), y1 = yP(Math.max(k.o, k.c)), y2 = yP(Math.min(k.o, k.c)); g.fillRect(x - w / 2, y1, w, Math.max(1, y2 - y1)); }
     /* linije signala */
     sigGeo.forEach(({ s, x0, x1, vis }) => { if (!vis) return; const a = s.open ? 1 : .5;
-      const TG = this.dark ? "#3fe0a0" : "#1E8E3E", SG = this.dark ? "#ff5a5f" : "#D93B30"; const L = [["t3", s.t3, TG, "T3 · +4R"], ["t2", s.t2, TG, "T2 · +3R"], ["t1", s.t1, TG, "T1 · +2R"], ["en", s.entry, s.kind === "shadow" ? "#F28A3A" : this.dark ? "#6FD58F" : "#1E8E3E", s.kind === "shadow" ? "Ulaz · sjena" : "Ulaz · pravi"], ["st", s.stop, SG, "Stop"]];
+      const TG = this.dark ? "#3fe0a0" : "#1E8E3E", SG = this.dark ? "#ff5a5f" : "#D93B30"; const L = (s.v2 ? [["t1", s.t1, TG, "T1 · +1R · 50%"]] : [["t3", s.t3, TG, "T3 · +4R"], ["t2", s.t2, TG, "T2 · +3R"], ["t1", s.t1, TG, "T1 · +2R"]]).concat([ ["en", s.entry, s.kind === "shadow" ? "#F28A3A" : this.dark ? "#6FD58F" : "#1E8E3E", s.kind === "shadow" ? "Ulaz · sjena" : "Ulaz · pravi"], ["st", s.stop, SG, "Stop"]]);
       L.forEach(([k, p, col, lab]) => { const y = Math.round(yP(p)) + .5; g.globalAlpha = a; g.strokeStyle = col; g.lineWidth = k === "en" || k === "st" ? 1.8 : 1.5; g.setLineDash(k === "en" || k === "st" ? [] : [2, 3]);
         g.beginPath(); g.moveTo(x0, y); g.lineTo(x1, y); g.stroke(); g.setLineDash([]);
         if (x1 - x0 > 40) { let txt = lab; if (k === "st") txt = "Stop " + fmtPct((s.stop / s.entry - 1) * 100, 2); bigLabel(g, x0 + (k === "en" ? 14 : 6), y - 6, txt, col, this.dark); } g.globalAlpha = 1; });
@@ -184,7 +184,7 @@ class PriceChart {
       g.strokeStyle = "#3B6FD4"; g.lineWidth = 1.2; g.setLineDash([2, 3]); g.beginPath(); g.moveTo(0, y); g.lineTo(plotW, y); g.stroke(); g.setLineDash([]); pill(g, 6, y - 9, l.label || "Moja linija", "#3B6FD4", true); });
     g.restore();
     /* oznake na osi */
-    const tags = []; openSigs.forEach(s => { tags.push([s.t3, this.UP, "#fff"], [s.t2, this.UP, "#fff"], [s.t1, this.UP, "#fff"], [s.entry, this.ink, this.inkFg], [s.stop, this.DN, "#fff"]); });
+    const tags = []; openSigs.forEach(s => { if (!s.v2) tags.push([s.t3, this.UP, "#fff"], [s.t2, this.UP, "#fff"]); tags.push([s.t1, this.UP, "#fff"], [s.entry, this.ink, this.inkFg], [s.stop, this.DN, "#fff"]); });
     this.lines.forEach(l => tags.push([l.price, "#3B6FD4", "#fff"]));
     if (!isNaN(this.live)) { const lk = this.c[this.c.length - 1]; tags.push([this.live, lk && lk.c >= lk.o ? this.UP : this.DN, "#fff", true]); }
     const TGc = this.dark ? "#3fe0a0" : "#1E8E3E", SGc = this.dark ? "#ff5a5f" : "#D93B30", tf = this.dark ? "#0b0d12" : "#fff";
@@ -192,7 +192,7 @@ class PriceChart {
     tags.forEach(([p, bg, fg, live]) => { const y = yP(p); if (y < P.main.y - 4 || y > P.main.y + P.main.h + 4) return; if (live) { g.strokeStyle = bg; g.setLineDash([2, 3]); g.lineWidth = 1; g.beginPath(); g.moveTo(0, Math.round(y) + .5); g.lineTo(plotW, Math.round(y) + .5); g.stroke(); g.setLineDash([]); }
       g.fillStyle = bg; rr(g, plotW + 2, y - 10, this.axisW - 4, 20, 5); g.fill(); g.fillStyle = fg; g.font = "800 11.5px Inter,system-ui"; g.textAlign = "center"; g.fillText(fmtP(p), plotW + this.axisW / 2, y + .5); });
     /* napredak prema ciljevima (prvi otvoreni signal na grafu): racuna se iz najdaljeg dosega cijene od ulaza, ne samo iz trenutne cijene */
-    const ps = openSigs[0]; if (ps && !isNaN(this.live) && ps.t1 !== ps.entry) { const sh = !!ps.short, tg = [ps.t1, ps.t2, ps.t3];
+    const ps = openSigs[0]; if (ps && !ps.v2 && !isNaN(this.live) && ps.t1 !== ps.entry) { const sh = !!ps.short, tg = [ps.t1, ps.t2, ps.t3];
       let ext = this.live; for (let q = 0; q < this.c.length; q++) { const k = this.c[q]; if (k.t >= ps.start) ext = sh ? Math.min(ext, k.l) : Math.max(ext, k.h); }
       const reached = v => sh ? ext <= v : ext >= v; let n = tg.filter(reached).length; const hn = ((ps.hit || "").match(/T\d/g) || []).length; if (hn > n) n = hn;
       const nx = n < 3 ? tg[n] : tg[2], pr = n >= 3 ? 1 : (sh ? ps.entry - ext : ext - ps.entry) / Math.abs(nx - ps.entry), pc = Math.max(0, Math.min(1, pr));
