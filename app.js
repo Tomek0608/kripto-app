@@ -459,6 +459,18 @@ function novaSummary(all) {
   return '<div class="card">' + kv("Zatvorenih", n + " od 100 potrebnih") + kv("Otvorenih", op.length) + kv("Dobitnih", n ? Math.round(win.length / n * 100) + "%" : "–") + kv("Prosječni R (novi rizik)", isFinite(avg) ? fmtR(avg) : "–") + kv("Prosječni R u osnovnom riziku (×2)", isFinite(r0) ? fmtR(r0) : "–") + kv("Profit factor", isFinite(pf) ? fmtN(pf, 2) : "–") +
     '<div class="muted" style="margin-top:12px;font-size:12px;line-height:1.6"><b>Kriteriji uspjeha</b>: najmanje 100 zatvorenih ' + ok(c1, c1 ? "✓" : "(još nije)") + ' · prosječni R u osnovnom riziku iznad +0,10 ' + ok(c2, c2 ? "✓" : "(još ne)") + ' · profit factor iznad 1,15 ' + ok(c3, c3 ? "✓" : "(još ne)") + '. Stop je 2× širi nego kod običnih signala (najviše 8% od ulaza), T1 je +1R (50%, pa stop na ulaz), ostatak ide s trailing stopom. R je u novom (širem) riziku.</div></div>';
 }
+function trailInfo(sel) {
+  const ru = Math.abs(sel.entry - sel.stop), d = ru * 0.75, t1 = (sel.hit || []).includes("T1"), sh = isShort(sel);
+  const ex = sh ? sel.entry - 2 * ru : sel.entry + 2 * ru, exStop = sh ? ex + d : ex - d;
+  const p = x => '<p class="note" style="margin-top:8px;line-height:1.55">' + x + '</p>';
+  return '<div class="card mt"><h2>Kako radi izlaz (trailing)</h2>' +
+    p('<b>1. Prije T1:</b> cijela pozicija je u igri, crvena crta na grafu je stop (' + fmtP(sel.stop) + '). Ako je cijena dotakne, gubitak je −1R.') +
+    p('<b>2. Kad cijena stigne do T1</b> (zelena crta, ' + fmtP(sel.t1) + '): zatvara se 50% pozicije s dobitkom +1R, a stop se za ostatak pomiče na ulaz (' + fmtP(sel.entry) + '). Tada trejd više ne može završiti u minusu.') +
+    p('<b>3. Ostatak (50%) ide s trailing stopom</b>: to je pomični stop (plava crta na grafu, pojavi se nakon T1). Drži se na stalnom razmaku od ' + fmtP(d) + ' (' + fmtN(d / sel.entry * 100, 2) + '% od ulaza) od najboljeg dosega cijene i ' + (sh ? "samo se spušta, nikad ne vraća gore" : "samo se podiže, nikad ne vraća dolje") + '. Što cijena ode dalje u našu korist, to je stop bliže uz nju i zaključuje veći dobitak. Izlaz je kad cijena obrne do plave crte, ili kad signal istekne.') +
+    p('<b>Primjer:</b> ako cijena nakon T1 ode do ' + fmtP(ex) + ', plava crta bude na ' + fmtP(exStop) + ', pa bi ostatak izašao ondje i zaključio oko ' + fmtN(2 - 0.75, 2) + 'R na tom dijelu (u novom riziku).') +
+    (t1 ? p('<b>Sada:</b> T1 je već dosegnut, trailing stop je trenutno na ' + (isFinite(sel.stopCur) ? fmtP(sel.stopCur) : "–") + '.') : p('<b>Sada:</b> čeka se T1, trailing još nije aktivan.')) + '</div>';
+}
+
 function sigDetailV2(sel, onChart, mid) {
   const pr = parseReasons(sel.reasons), op = isOpen(sel), t1 = (sel.hit || []).includes("T1");
   const lv = (lab, v, c, k) => '<div class="kv"><span>' + lab + '</span><span style="display:flex;gap:14px"><b class="' + (c || "") + '">' + (v === "" ? "–" : fmtP(v)) + '</b>' + (op && k ? '<span class="muted" style="min-width:64px;text-align:right" data-live="' + sel.pair + '" data-k="' + k + '" data-sid="' + esc(sel.id) + '"></span>' : "") + '</span></div>';
@@ -468,7 +480,7 @@ function sigDetailV2(sel, onChart, mid) {
     '<div class="mt">' + lv("Ulaz", sel.entry, "", "") + lv("Stop (" + fmtPct((sel.stop / sel.entry - 1) * 100) + ")", sel.stop, "down", "st") + lv("T1 · +1R · 50%, pa stop na ulaz", sel.t1, "up", "t1") + lv("Ostatak 50% · trailing stop", t1 ? (sel.stopCur || "") : "", "", "") +
     '<div class="kv"><span>Status</span><span>' + statusTag(sel) + '</span></div>' + (op ? '<div class="kv"><span>Uživo (R)</span><b data-live="' + sel.pair + '" data-k="r" data-sid="' + esc(sel.id) + '">–</b></div>' : '<div class="kv"><span>Izlaz</span><b>' + (REASON_TXT[sel.reason] || "–") + ' · ' + fmtT(sel.exit) + ' · ' + fmtR(sel.rnet) + '</b></div>') +
     '<div class="kv"><span>Ciljevi</span><b>' + ((sel.hit || []).length ? sel.hit.map(h => h + " ✓").join(" · ") : "Čeka T1") + '</b></div>' + (isFinite(sel.mfe) && isFinite(sel.mae) ? '<div class="kv"><span>Najveći plus / minus (R)</span><b>' + fmtR(sel.mfe) + ' / ' + fmtR(sel.mae) + '</b></div>' : "") + '</div></div>' +
-    (mid || "") + '<div class="card mt"><h2>Na čemu se temelji signal</h2><div style="margin-top:10px">' + bars + '</div><p class="note"><b>Poništenje:</b> cijena dotakne stop (' + fmtP(sel.stop) + ') ili istek signala.</p></div>';
+    (mid || "") + trailInfo(sel) + '<div class="card mt"><h2>Na čemu se temelji signal</h2><div style="margin-top:10px">' + bars + '</div><p class="note"><b>Poništenje:</b> cijena dotakne stop (' + fmtP(sel.stop) + ') ili istek signala.</p></div>';
 }
 
 function vSignali(arg) { const h = vSignali0(arg); return NOVA ? h.split("#/signali").join("#/nova") : h; }
@@ -768,7 +780,7 @@ function chartSigs() {
   return ss.map(s => { const o = isOpen(s); let xp = null, lab = ""; if (!o) { xp = s.reason === "T3" ? s.t3 : s.reason === "stop" ? s.stop : s.reason === "stop_na_ulazu" ? s.entry : null;
       if (xp == null && chart) { const i = chart.idxOfTime(s.exit); const k = chart.c[Math.max(0, Math.min(chart.c.length - 1, Math.round(i)))]; xp = k ? k.c : s.entry; }
       lab = (REASON_TXT[s.reason] || "") + " " + fmtR(s.rnet); }
-    return { id: s.id, open: o, start: s.created, end: o ? null : s.exit, entry: s.entry, stop: s.stop, t1: s.t1, t2: s.t2, t3: s.t3, rnet: s.rnet, exitPrice: xp, exitLabel: lab, kind: s.kind, short: isShort(s), v2: isV2(s), hit: (s.hit || []).join(",") }; });
+    return { id: s.id, open: o, start: s.created, end: o ? null : s.exit, entry: s.entry, stop: s.stop, t1: s.t1, t2: s.t2, t3: s.t3, rnet: s.rnet, exitPrice: xp, exitLabel: lab, kind: s.kind, short: isShort(s), v2: isV2(s), stopCur: s.stopCur, hit: (s.hit || []).join(",") }; });
 }
 function paintChartSide() {
   const sg = $("#gsigs"); if (!sg) return; const ss = S.rows.filter(s => s.pair === chartState.pair && s.status !== "skipped_capital" && !isV2(s)).sort((a, b) => b.created - a.created);
