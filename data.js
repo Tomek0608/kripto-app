@@ -41,6 +41,7 @@ const isClosed = s => s.status === "closed" || s.status === "shadow_closed";
 const isReal = s => s.kind === "real" && (s.status === "open" || s.status === "closed");
 const isShadow = s => s.kind === "shadow";
 const isSR = s => /-sr$/.test(s.version || "");
+const isV2 = s => /^v2/.test(s.version || "");
 
 async function loadRemote(cfg) {
   const url = `https://api.github.com/repos/${cfg.repo}/contents/data/signali.csv?ref=${encodeURIComponent(cfg.branch || "main")}`;
@@ -134,7 +135,7 @@ function maxDD(rs, key, start) {
   [...rs].sort((a, b) => a.exit - b.exit).forEach(s => { eq += s[key] || 0; peak = Math.max(peak, eq); if (peak > 0) m = Math.max(m, (peak - eq) / peak); });
   return m * 100;
 }
-const REASON_TXT = { T3: "Cilj T3", stop_na_ulazu: "T1, pa ulaz", stop: "Stop", isteklo: "Istek" };
+const REASON_TXT = { T3: "Cilj T3", stop_na_ulazu: "T1, pa ulaz", stop: "Stop", isteklo: "Istek", trailing: "T1, pa trailing stop" };
 
 /* ---------- formatiranje ---------- */
 function fmtP(p) {
