@@ -168,10 +168,10 @@ class PriceChart {
       const w = Math.max(1, bw * .62), y1 = yP(Math.max(k.o, k.c)), y2 = yP(Math.min(k.o, k.c)); g.fillRect(x - w / 2, y1, w, Math.max(1, y2 - y1)); }
     /* linije signala */
     sigGeo.forEach(({ s, x0, x1, vis }) => { if (!vis) return; const a = s.open ? 1 : .5;
-      const TG = this.dark ? "#3fe0a0" : "#1E8E3E", SG = this.dark ? "#ff5a5f" : "#D93B30"; const L = (s.v2 ? [["t1", s.t1, TG, "T1 · +1R · 50%"]] : [["t3", s.t3, TG, "T3 · +4R"], ["t2", s.t2, TG, "T2 · +3R"], ["t1", s.t1, TG, "T1 · +2R"]]).concat([ ["en", s.entry, s.kind === "shadow" ? "#F28A3A" : this.dark ? "#6FD58F" : "#1E8E3E", s.kind === "shadow" ? "Ulaz · sjena" : "Ulaz · pravi"], ["st", s.stop, SG, "Stop"]]);
+      const TG = this.dark ? "#3fe0a0" : "#1E8E3E", SG = this.dark ? "#ff5a5f" : "#D93B30"; const L = (s.v2 ? [["t1", s.t1, TG, "T1 · +1R · 50%"]] : [["t3", s.t3, TG, "T3 · +4R"], ["t2", s.t2, TG, "T2 · +3R"], ["t1", s.t1, TG, "T1 · +2R"]]).concat([ ["en", s.entry, s.kind === "shadow" ? "#F28A3A" : this.dark ? "#6FD58F" : "#1E8E3E", s.kind === "shadow" ? "Ulaz · sjena" : "Ulaz · pravi"], ["st", s.stop, SG, s.v2 && /T1/.test(s.hit || "") ? "Početni stop (zamijenjen)" : "Stop"]].concat(s.v2 && /T1/.test(s.hit || "") && isFinite(s.stopCur) ? [["tr", s.stopCur, "#4FA3FF", "Trailing stop (ostatak 50%)"]] : []));
       L.forEach(([k, p, col, lab]) => { const y = Math.round(yP(p)) + .5; g.globalAlpha = a; g.strokeStyle = col; g.lineWidth = k === "en" || k === "st" ? 1.8 : 1.5; g.setLineDash(k === "en" || k === "st" ? [] : [2, 3]);
         g.beginPath(); g.moveTo(x0, y); g.lineTo(x1, y); g.stroke(); g.setLineDash([]);
-        if (x1 - x0 > 40) { let txt = lab; if (k === "st") txt = "Stop " + fmtPct((s.stop / s.entry - 1) * 100, 2); bigLabel(g, x0 + (k === "en" ? 14 : 6), y - 6, txt, col, this.dark); } g.globalAlpha = 1; });
+        if (x1 - x0 > 40) { let txt = lab; if (k === "st") txt = (lab === "Stop" ? "Stop" : lab) + " " + fmtPct((s.stop / s.entry - 1) * 100, 2); bigLabel(g, x0 + (k === "en" ? 14 : 6), y - 6, txt, col, this.dark); } g.globalAlpha = 1; });
       /* oznaka ulaza */
       const ex = xr(s.start); if (ex >= 0 && ex <= plotW) { g.fillStyle = s.kind === "shadow" ? "#F28A3A" : this.dark ? "#6FD58F" : "#1E8E3E"; g.globalAlpha = a; const ey = yP(s.entry); g.beginPath(); if (s.short) { g.moveTo(ex, ey - 4); g.lineTo(ex - 5, ey - 12); g.lineTo(ex + 5, ey - 12); } else { g.moveTo(ex, ey + 4); g.lineTo(ex - 5, ey + 12); g.lineTo(ex + 5, ey + 12); } g.fill(); g.globalAlpha = 1; }
       /* izlaz */
