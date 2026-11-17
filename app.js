@@ -449,7 +449,23 @@ function sigPage(sel, ids) {
   return nav + hero + `<div class="pgcols"><div>${left}</div><div>${right}</div></div>`;
 }
 
-function novaSummary(all) {
+function rezimOf(s) {
+  const b = s.btc7; if (!isFinite(b)) return "";
+  return b < -10 ? "jaki pad" : b < -4 ? "pad" : b < 4 ? "bez smjera" : b < 10 ? "rast" : "jaki rast";
+}
+function novaRezimi(all) {
+  const cl = all.filter(isClosed), op = all.filter(isOpen), nm = ["jaki pad", "pad", "bez smjera", "rast", "jaki rast", ""];
+  let rows = "";
+  [["SHORT", true], ["LONG", false]].forEach(a => nm.forEach(r => {
+    const o = op.filter(s => isShort(s) === a[1] && rezimOf(s) === r).length, c = cl.filter(s => isShort(s) === a[1] && rezimOf(s) === r), rs = c.map(s => s.rnet).filter(isFinite);
+    if (!o && !rs.length) return;
+    const sw = rs.filter(x => x > 0).reduce((x, y) => x + y, 0), sl = rs.filter(x => x <= 0).reduce((x, y) => x + y, 0), avg = rs.length ? (sw + sl) / rs.length : NaN;
+    rows += "<tr><td>" + a[0] + "</td><td>" + (r || "nepoznat") + "</td><td class=\"r\">" + o + "</td><td class=\"r\">" + rs.length + "</td><td class=\"r\">" + (isFinite(avg) ? fmtR(avg) : "–") + "</td><td class=\"r\">" + (sl < 0 ? fmtN(sw / -sl, 2) : "–") + "</td></tr>";
+  }));
+  return '<div class="card"><h2>Po tržišnom režimu (BTC 7 dana)</h2><div class="sub">Za odluku o filteru: vidi se u kojem režimu SHORT i LONG stvarno rade. LONG se uključuje kao sjena tek kad BTC 7d pređe +4%.</div>' + (rows ? "<table><tr><th>Smjer</th><th>Režim</th><th class=\"r\">Otvoreno</th><th class=\"r\">Zatvoreno</th><th class=\"r\">Prosj. R</th><th class=\"r\">PF</th></tr>" + rows + "</table>" : '<div class="note">Još nema podataka.</div>') + "</div>";
+}
+function novaSummary(all0) {
+  const all = all0.filter(isShort);
   const cl = all.filter(isClosed), op = all.filter(isOpen), rs = cl.map(s => s.rnet).filter(isFinite), n = rs.length;
   const win = rs.filter(x => x > 0), sw = win.reduce((a, b) => a + b, 0), sl = rs.filter(x => x <= 0).reduce((a, b) => a + b, 0), tot = sw + sl;
   const avg = n ? tot / n : NaN, r0 = avg * 2, pf = sl < 0 ? sw / -sl : NaN;
@@ -475,7 +491,7 @@ function sigDetailV2(sel, onChart, mid) {
   const pr = parseReasons(sel.reasons), op = isOpen(sel), t1 = (sel.hit || []).includes("T1");
   const lv = (lab, v, c, k) => '<div class="kv"><span>' + lab + '</span><span style="display:flex;gap:14px"><b class="' + (c || "") + '">' + (v === "" ? "–" : fmtP(v)) + '</b>' + (op && k ? '<span class="muted" style="min-width:64px;text-align:right" data-live="' + sel.pair + '" data-k="' + k + '" data-sid="' + esc(sel.id) + '"></span>' : "") + '</span></div>';
   const bars = pr.items.map(i => '<div style="margin:12px 0"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px"><b>' + esc(i.name) + '</b><span class="muted">' + i.v + ' / ' + i.max + '</span></div><div class="bar"><div style="width:' + (i.max ? i.v / i.max * 100 : 0) + '%;background:' + (i.v / i.max >= .66 ? "var(--up)" : i.v / i.max >= .33 ? "var(--gray)" : "var(--down)") + '"></div></div></div>').join("");
-  return '<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap"><div><h2 style="font-size:22px;font-weight:600">' + esc(dn(sel.pair)) + ' · NOVA STRATEGIJA · SHORT</h2>' +
+  return '<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap"><div><h2 style="font-size:22px;font-weight:600">' + esc(dn(sel.pair)) + ' · NOVA STRATEGIJA · ' + (isShort(sel) ? 'SHORT' : 'LONG') + ' · režim: ' + (rezimOf(sel) || '?') + '</h2>' +
     '<div class="sub" style="margin-top:4px">Probni signal (sjena, nije za ulazak) · okvir ' + sel.tf + ' · otvoren ' + fmtT(sel.created) + ' · vrijedi do ' + fmtT(sel.expires) + ' · strategija v2</div></div><div style="text-align:right"><div class="score"><b>' + sel.score + '</b><span class="muted">/ 100</span></div></div></div>' +
     '<div class="mt">' + lv("Ulaz", sel.entry, "", "") + lv("Stop (" + fmtPct((sel.stop / sel.entry - 1) * 100) + ")", sel.stop, "down", "st") + lv("T1 · +1R · 50%, pa stop na ulaz", sel.t1, "up", "t1") + lv("Ostatak 50% · trailing stop", t1 ? (sel.stopCur || "") : "", "", "") +
     '<div class="kv"><span>Status</span><span>' + statusTag(sel) + '</span></div>' + (op ? '<div class="kv"><span>Uživo (R)</span><b data-live="' + sel.pair + '" data-k="r" data-sid="' + esc(sel.id) + '">–</b></div>' : '<div class="kv"><span>Izlaz</span><b>' + (REASON_TXT[sel.reason] || "–") + ' · ' + fmtT(sel.exit) + ' · ' + fmtR(sel.rnet) + '</b></div>') +
@@ -538,13 +554,13 @@ function vSignali0(arg) {
     const full = []; String(s.reasons || "").split("\n").forEach(l => { const m = l.match(/^- (.+?) \((\d+)\/(\d+)\)/); if (m) full.push({ n: m[1], v: +m[2], m: +m[3] }); });
     const inJ = jIds.has(s.id), ex = sigFilter.x === s.id, mk = (c, left) => `<i class="${c}" style="left:${left}%"></i>`, lbl = (c, t, v) => `<div><b class="${c}">${t}</b><span>${v}</span></div>`;
     return `<div class="srow k-${isShadow(s) ? "shadow" : "real"} ${cl}" data-x="${esc(s.id)}"><div class="sr-top"><b class="sr-pair">${esc(dn(s.pair))}</b><span class="sr-tag ${sh ? "dn" : "up"}">${sh ? "SHORT" : "LONG"}</span><span class="sr-tag ${isShadow(s) ? "sh" : "re"}">${isSR(s) ? "Sjena S/R" : isShadow(s) ? "Sjena" : "Pravi"}</span>${inJ ? '<span class="sr-tag jn">u dnevniku</span>' : ""}<span class="sr-sc">${s.score} b</span><b class="sr-r ${cl}">${isFinite(r) ? fmtR(r) : "–"}</b></div>
-    <div class="sr-mid"><span>${s.tf} · ${ageTxt(s.created)}</span><b class="${cl}">${esc(stat)}</b><span class="sr-px"><span data-live="${esc(s.pair)}" data-k="price">${isFinite(px) ? fmtP(px) : "–"}</span></span></div>
+    <div class="sr-mid"><span>${s.tf} · ${ageTxt(s.created)}${isV2(s) ? " · režim: " + (rezimOf(s) || "?") : ""}</span><b class="${cl}">${esc(stat)}</b><span class="sr-px"><span data-live="${esc(s.pair)}" data-k="price">${isFinite(px) ? fmtP(px) : "–"}</span></span></div>
     <div class="gauge"><u></u><u class="f ${cl}" style="left:${fl0}%;width:${fw}%"></u>${mk("s", 3.6)}${mk("e", 21.4)}${isV2(s) ? mk("t", 39.3) : mk("t", 57.1) + mk("t", 75) + mk("t", 92.9)}<em class="${cl}" style="left:${pos}%"></em></div>
     ${ex ? `<div class="sr-det"><div class="sr-lv">${lbl("down", "Stop −1R", fmtP(s.stop_cur || s.stop))}${lbl("", "Ulaz", fmtP(s.entry))}${lbl("up", isV2(s) ? "T1 +1R" : "T1 +2R", fmtP(s.t1))}${isV2(s) ? "" : lbl("up", "T2 +3R", fmtP(s.t2)) + lbl("up", "T3 +4R", fmtP(s.t3))}</div>
     ${full.length ? `<div class="sr-rs">${full.map(i => `<div><div><span>${esc(i.n)}</span><b>${i.v}/${i.m}</b></div><div class="bar"><div style="width:${i.m ? i.v / i.m * 100 : 0}%;background:#f28a3a"></div></div></div>`).join("")}</div>` : ""}
     <div class="sr-btn"><a class="btn" href="#/signali/${esc(s.id)}">Graf i detalji</a>${op && !inJ ? `<a class="btn primary" href="#/dnevnik/${esc(s.id)}">Uđi u dnevnik</a>` : ""}</div></div>` : ""}</div>`; }).join("") || '<div class="empty">Nema signala za ovaj filtar.</div>';
   if (isNarrow()) {
-    if (!arg || !all.find(s => s.id === arg)) return shell(NOVA ? "Nova strategija (SHORT v2)" : "Signali i analiza", NOVA ? "Probni rad, bez Telegrama. Dodirni signal za graf s ulazom, T1 i stopom." : "Dodirnite signal da vidite graf, brojeve i razloge.", (NOVA ? novaSummary(all) : "") + `<div class="legend"><span class="tag real">Pravi signal</span><span class="tag shadow">Sjena (probni)</span></div>
+    if (!arg || !all.find(s => s.id === arg)) return shell(NOVA ? "Nova strategija (SHORT v2)" : "Signali i analiza", NOVA ? "Probni rad, bez Telegrama. Dodirni signal za graf s ulazom, T1 i stopom." : "Dodirnite signal da vidite graf, brojeve i razloge.", (NOVA ? novaSummary(all) + novaRezimi(all) : "") + `<div class="legend"><span class="tag real">Pravi signal</span><span class="tag shadow">Sjena (probni)</span></div>
     ${sigBar()}
     <div class="list">${list}</div>`);
     const d = all.find(s => s.id === arg);
