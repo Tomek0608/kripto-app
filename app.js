@@ -765,7 +765,8 @@ function vPostavke() {
 }
 
 /* ---------------- Graf uzivo ---------------- */
-const chartState = Object.assign({ pair: "", tf: "1h", show: "all", ema: true, vol: true, rsi: true, macd: true }, lsGet("chartState", {}));
+const chartState = Object.assign({ pair: "", tf: "1h", show: "last", ema: true, vol: true, rsi: true, macd: true }, lsGet("chartState", {}));
+if (chartState.show === "all") chartState.show = "last";
 const INTERVAL = { "15m": "15m", "1h": "1h", "4h": "4h", "1D": "1d" };
 const DEFAULT_PAIRS = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "LINKUSDT"];
 function userLines(pair) { return lsGet("lines:" + pair, []); }
@@ -779,7 +780,7 @@ function vGraf(arg) {
   <div class="chartbar"><input class="txt sm" id="gpair" list="pairs" value="${esc(dn(chartState.pair))}" aria-label="Par"><datalist id="pairs">${pairs.map(p => `<option value="${dn(p)}">`).join("")}</datalist>
     <div class="seg" id="gtf">${Object.keys(INTERVAL).map(k => `<button data-tf="${k}" class="${chartState.tf === k ? "on" : ""}">${k}</button>`).join("")}</div>
     ${cb("ema", "EMA")}${cb("vol", "Volumen")}${cb("rsi", "RSI")}${cb("macd", "MACD")}
-    <select class="txt sm" id="gshow" style="width:auto"><option value="all">Svi signali</option><option value="real">Samo pravi</option><option value="open">Samo otvoreni</option></select>
+    <select class="txt sm" id="gshow" style="width:auto"><option value="last">Samo zadnji signal</option><option value="sve">Svi signali</option><option value="real">Samo pravi</option><option value="open">Samo otvoreni</option></select>
     <button class="chip-btn" id="gadd">+ Moja linija</button><button class="chip-btn" id="greset">Vrati prikaz</button></div>
   <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:10px;flex-wrap:wrap"><span class="price-big" id="gprice">–</span><span id="gpct" style="font-weight:600"></span><div class="ohlc" id="gohlc"></div></div>
   <div class="cl"><div class="chartwrap" id="gwrap"></div><div class="cside"><div class="card"><h2>Signali na ovom paru</h2><div class="sub">Klik na signal otvara cijelu analizu ispod grafa.</div><div id="gsigs" style="margin-top:8px"></div></div>
@@ -792,6 +793,7 @@ function chartSel() {
 }
 function chartSigs() {
   const pair = chartState.pair; let ss = S.rows.filter(s => s.pair === pair && s.status !== "skipped_capital" && NOVA === isV2(s));
+  if (chartState.show === "last") { const cur = ss.slice().sort((x, y) => y.created - x.created); const pick = cur.find(s => s.id === chartState.sig) || cur[0]; ss = pick ? [pick] : []; }
   if (chartState.show === "real") ss = ss.filter(s => s.kind === "real"); if (chartState.show === "open") ss = ss.filter(isOpen);
   return ss.map(s => { const o = isOpen(s); let xp = null, lab = ""; if (!o) { xp = s.reason === "T3" ? s.t3 : s.reason === "stop" ? s.stop : s.reason === "stop_na_ulazu" ? s.entry : null;
       if (xp == null && chart) { const i = chart.idxOfTime(s.exit); const k = chart.c[Math.max(0, Math.min(chart.c.length - 1, Math.round(i)))]; xp = k ? k.c : s.entry; }
