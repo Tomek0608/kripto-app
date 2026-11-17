@@ -866,7 +866,7 @@ function bind(arg) {
 }
 function bindSigChart(id) {
   const sel = S.rows.find(x => x.id === id); if (!sel) return;
-  chartState.pair = sel.pair; chartState.sig = sel.id; chartState.show = "all"; lsSet("chartState", chartState);
+  chartState.pair = sel.pair; chartState.sig = sel.id; chartState.show = "last"; lsSet("chartState", chartState);
   const wrap = $("#sgchart"); chart = new PriceChart(wrap, { ema: chartState.ema, vol: chartState.vol, rsi: false, macd: false }); chart.setTheme(document.documentElement.dataset.theme);
   chart.setLines(allLines()); loadKlines();
   $("#sgtf").querySelectorAll("button").forEach(b => b.addEventListener("click", () => { chartState.tf = b.dataset.tf; lsSet("chartState", chartState); $("#sgtf").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); chart.setData([], chartState.tf); loadKlines(); }));
